@@ -1,0 +1,54 @@
+name: Studio clone-and-run
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - start.cmd
+      - desktop/**
+      - tools/Start-Studio.ps1
+      - tools/Studio-Bootstrap.psm1
+      - tools/iossweet-native-windows.py
+      - tests/**
+      - .github/workflows/studio-source-launch.yml
+  pull_request:
+    paths:
+      - start.cmd
+      - desktop/**
+      - tools/Start-Studio.ps1
+      - tools/Studio-Bootstrap.psm1
+      - tests/**
+permissions:
+  contents: read
+jobs:
+  clean-bootstrap:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap without installing Python or developer tools
+        shell: powershell
+        run: |
+          .\start.cmd -PrepareOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Source bootstrap failed' }
+      - name: Test using only the downloaded private interpreter
+        shell: powershell
+        run: |
+          $spec=Get-Content desktop/runtime-lock.json -Raw|ConvertFrom-Json
+          $runtime=Join-Path (Get-Location) ('.studio/runtime/'+$spec.version)
+          $env:IOS_SWEET_ASSET_ROOT=Join-Path $runtime 'assets'
+          $env:IOS_SWEET_HOME=Join-Path (Get-Location) '.studio/data'
+          & (Join-Path $runtime 'python/python.exe') desktop/source_entry.py --test-source
+          if ($LASTEXITCODE -ne 0) { throw 'Source tests failed' }
+      - name: A second run reuses the verified dependency cache
+        shell: powershell
+        run: |
+          .\start.cmd -PrepareOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Cached bootstrap failed' }
+      - name: Bootstrap diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-bootstrap-logs
+          path: .studio/logs/*.log
+          retention-days: 7

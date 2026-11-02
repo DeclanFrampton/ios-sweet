@@ -54,6 +54,8 @@ def python_tool(name):
     """Frozen Studio dispatches only its three bundled, allowlisted tools."""
     if getattr(sys, 'frozen', False):
         return [sys.executable, '--tool', name]
+    if os.environ.get('IOS_SWEET_SOURCE_ENTRY'):
+        return [sys.executable,os.environ['IOS_SWEET_SOURCE_ENTRY'],'--tool',name]
     return [sys.executable, str(TOOL / name)]
 
 

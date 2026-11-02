@@ -25,10 +25,11 @@ HIDDEN=getattr(subprocess,'CREATE_NO_WINDOW',0)
 
 
 def asset_paths(resource: Path):
-    asset=resource/'desktop/assets'
-    if not asset.is_dir():asset=resource/'windows-runtime/desktop-build/assets'
+    override=os.environ.get('IOS_SWEET_ASSET_ROOT')
+    asset=Path(override).resolve() if override else resource/'desktop/assets'
+    if not override and not asset.is_dir():asset=resource/'windows-runtime/desktop-build/assets'
     qemu=asset/'qemu'
-    if not qemu.is_dir():qemu=resource/'windows-runtime/qemu'
+    if not override and not qemu.is_dir():qemu=resource/'windows-runtime/qemu'
     required=('prepare-kernel','prepare-initrd.gz','iossweet-agent','iossweet-net-seed','kernel.aks-quiet.sweet')
     manifest=json.loads((asset/'manifest.json').read_text())
     for name in required:

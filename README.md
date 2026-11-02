@@ -4,11 +4,46 @@ A native Windows desktop workspace for an experimental, locally emulated
 **iPhone running iOS 16.7.16**: embedded iPhone viewer, IPA file selection,
 local development signing, installation, app library and launch controls.
 
-> **Preview / source build.** The Studio desktop app, guest installer,
-> build tooling, tests and complete instructions are all on
+> **Clone and run. No Studio installer.** Everything is on
 > [`main`](https://github.com/danhol86/ios-sweet/tree/main), the default branch.
-> A normal clone includes the full project; no separate development branch
-> is needed. The installer release and clean-PC acceptance remain pending.
+> Run one command after cloning: **`.\start.cmd`**. It downloads/verifies its
+> private runtime dependencies and opens the app directly from this source.
+
+## Quick start — one command after cloning
+
+```powershell
+git clone https://github.com/danhol86/ios-sweet.git
+cd ios-sweet
+.\start.cmd
+```
+
+That is the normal user setup. **Do not follow the compiler/SDK build guide
+below just to run the app.** No separately installed Python, Docker, WSL,
+Apple SDK, Node, compiler, GitHub login or signing certificate is needed.
+
+The command downloads a pinned, SHA-256-verified dependency ZIP into `.studio/`,
+checks Microsoft WebView2 (installs that dependency from Microsoft only if
+missing), then opens the **Studio code from your clone**. It does not use a
+Studio setup EXE, change your system Python/PATH, or register an installed app.
+Run the same command next time: verified downloads are reused.
+
+On first use, confirm the in-app firmware authorisation and select
+**Download & create iPhone**. Apple firmware is downloaded directly from
+Apple, not bundled in GitHub. Then choose an IPA and click **Install & launch**.
+Your private device and apps live in `.studio/data/`; keep that folder when
+updating with `git pull`.
+
+**Requirements:** Windows 10/11 x64 (Intel/AMD, Windows build 19041+), internet
+for initial downloads, 35 GB free storage for device creation, and 6 GiB free
+RAM before starting the emulated iPhone. The desktop bootstrap does not itself
+start QEMU. The emulator remains experimental and not every IPA is supported.
+
+See [run-from-source help](docs/RUN_FROM_SOURCE.md) for another data drive,
+logs and troubleshooting. For dependency checks without opening a window:
+
+```powershell
+.\start.cmd -PrepareOnly
+```
 
 ## Current status and scope
 
@@ -19,7 +54,8 @@ local development signing, installation, app library and launch controls.
 | App acceptance | The supplied ARM64 iOSNova app registered and ran as a real iOS process; its Simple screen rendered |
 | Initial firmware download | All pinned Apple firmware components downloaded and passed archive integrity checks |
 | Clean-PC first run | Full Apple-download-to-root-to-boot workflow and installed-package acceptance still outstanding |
-| Public distribution | Studio EXE/ZIP built locally; no Studio installer release published yet. The older Docker preview is a different product path. |
+| Running the source | `start.cmd` downloads verified app-local dependencies and launches the cloned source; no Studio installer |
+| Public dependencies | Immutable Windows x64 runtime pack published for the launcher; it contains no Apple firmware or private guest data |
 
 This preview targets **Windows 10/11 x64 (Intel/AMD)**, not every machine.
 It accepts **unencrypted ARM64 iOS-device IPAs compatible with iOS 16.7.16**;
@@ -35,10 +71,11 @@ experimental development environment, not a secure personal iPhone.
 
 ## Where to start
 
-- **Developers:** use [the full source-build instructions below](#build-ios-sweet-studio-from-source).
+- **Run Studio:** clone this repo and execute `.\start.cmd`; [normal-user help](docs/RUN_FROM_SOURCE.md).
+- **Rebuild all helper binaries:** use [the advanced source-build instructions below](#build-ios-sweet-studio-from-source).
 - **Reading just the guide:** [standalone build guide](https://github.com/danhol86/ios-sweet/blob/main/docs/STUDIO_SOURCE_BUILD.md).
 - **Existing development guest:** [native Windows notes](https://github.com/danhol86/ios-sweet/blob/main/docs/NATIVE_WINDOWS.md) and [guest installation bridge](https://github.com/danhol86/ios-sweet/blob/main/tools/guest-install/README.md).
-- **Downloads:** check [GitHub Releases](https://github.com/danhol86/ios-sweet/releases) for an explicitly named Studio release; do not mistake the older Docker ZIP for the new desktop app.
+- **Dependencies:** the launcher automatically downloads its exact [runtime pack](https://github.com/danhol86/ios-sweet/releases/tag/studio-runtime-v0.2.0-r1). You do not download an installer or the older Docker preview.
 - **Original physical-phone port:** preserved in the historical section at the bottom. Its flashing instructions do not apply to desktop Studio.
 
 <!-- STUDIO_SOURCE_BUILD_BEGIN -->

@@ -6,3 +6,4 @@ tools/guest-install/Dockerfile text eol=lf
 desktop/appliance/Dockerfile text eol=lf
 desktop/helper-toolchain.Dockerfile text eol=lf
 Start-iOS-Sweet-Apps.cmd text eol=crlf
+start.cmd text eol=crlf

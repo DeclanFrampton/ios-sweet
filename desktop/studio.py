@@ -46,6 +46,8 @@ def load_module(name: str, path: Path):
 def tool_command(name: str, *args) -> list[str]:
     if name not in ('iossweet-native-windows.py','mkadt.py','mkpayload.py'):
         raise ValueError('Unknown tool')
+    if not FROZEN and os.environ.get('IOS_SWEET_SOURCE_ENTRY'):
+        return [sys.executable,os.environ['IOS_SWEET_SOURCE_ENTRY'],'--tool',name,*map(str,args)]
     return [sys.executable,*( ['--tool',name] if FROZEN else [str(TOOLS/name)]),*map(str,args)]
 
 
@@ -239,6 +241,10 @@ class Studio:
         return {'apps':installed,'launch':self.launch(info['bundleId'])}
 
     def signer(self):
+        if os.environ.get('IOS_SWEET_ASSET_ROOT'):
+            p=Path(os.environ['IOS_SWEET_ASSET_ROOT']).resolve()/'rcodesign.exe'
+            if not p.is_file():raise RuntimeError('The downloaded runtime signer is missing. Run start.cmd again.')
+            return p
         choices=[RESOURCE/'desktop/assets/rcodesign.exe',*RESOURCE.glob('windows-runtime/desktop-build/signer/**/rcodesign.exe')]
         for p in choices:
             if p.is_file():return p
@@ -365,12 +371,21 @@ def main():
             app.selected={'path':str(path),'info':bundles.inspect_ipa(path)}
         except Exception as e:app.log('IPA selection failed: '+str(e))
     with ThreadingHTTPServer(('127.0.0.1',0),Handler) as server:
-        (app.home/'state/desktop.json').write_text(json.dumps({'pid':os.getpid(),'port':server.server_port}))
+        session_file=app.home/'state/desktop.json'
+        session_file.write_text(json.dumps({'pid':os.getpid(),'port':server.server_port,'uiReady':False}))
         app.log('Desktop interface listening on local port '+str(server.server_port))
         threading.Thread(target=server.serve_forever,daemon=True).start()
         import webview
         app.window=webview.create_window('iOS Sweet Studio',f'http://127.0.0.1:{server.server_port}',
             width=1280,height=900,min_size=(1000,740),background_color='#0b1020')
+        def window_loaded(*_):
+            # A listening HTTP server alone does not prove the native display
+            # loaded. The source bootstrap waits for this WebView event too.
+            temporary=session_file.with_suffix('.ready')
+            temporary.write_text(json.dumps({'pid':os.getpid(),'port':server.server_port,'uiReady':True}))
+            os.replace(temporary,session_file)
+            app.log('Native Studio window loaded successfully.')
+        app.window.events.loaded+=window_loaded
         def closing():
             if app.lock.locked():
                 ctypes.windll.user32.MessageBoxW(0,'An operation is still running. Finish it before closing Studio.','iOS Sweet Studio',48);return False

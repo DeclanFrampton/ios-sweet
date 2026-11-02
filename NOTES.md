@@ -1,5 +1,51 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 2 November 2026 - clone-and-run source launcher, no app installer
+
+- User explicitly replaced the installer requirement with: clone the repo,
+  run one command, automatically obtain dependencies and open the app.
+  Added root `start.cmd`, `tools/Start-Studio.ps1`, shared bootstrap safety
+  functions, a pinned dependency lock and `desktop/source_entry.py`. The
+  command runs the checked-out Studio source rather than a frozen app EXE.
+- Published immutable public runtime pack `studio-runtime-v0.2.0-r1`:
+  `studio-runtime-v0.2.0-r1-windows-x64.zip`, 142484753 bytes, SHA-256
+  `374be227969ecf5f552f5cf39729434e858baaaaed1718cc6e7786117fe1f476`.
+  File-inventory SHA-256 is separately pinned in desktop/runtime-lock.json.
+  Pack contains app-local CPython 3.14.10 (official archive hash verified),
+  pinned vendored GUI/IPA libraries, QEMU, local signer, source-built guest
+  helpers and the offline preparation appliance. Audited 514 ZIP entries:
+  no Apple firmware/SDK, private IPA, guest disk, bridge secret or installer.
+- Uses .studio/runtime and .studio/data in the clone; all ignored by Git.
+  No global Python, pip installation, PATH modification, app registration,
+  Docker, WSL, compiler, SDK or GitHub credentials needed on the client.
+  Microsoft WebView2 is checked and, only if missing, its signature-verified
+  Microsoft bootstrapper is run per-user. No elevation is requested.
+- Exact empty-cache `start.cmd -PrepareOnly` downloaded the public GitHub
+  dependency ZIP without credentials, checked it, imported the real source
+  and passed native executable preflight. A cached run reused the archive.
+  Actual GUI launch passed using the private pythonw.exe: WebView loaded,
+  `uiReady=true`, visible native window handle and title iOS Sweet Studio.
+  Fixed a Windows SW_HIDE launch flag that initially hid the GUI; normal
+  GUI startup now uses pythonw with no extra console. Readiness requires
+  both the loaded WebView event and a visible native main window.
+- 69 Python tests pass on the private CPython runtime; both existing
+  JavaScript suites pass. Added archive/path/integrity checks, source-tool
+  allowlisting tests and a Windows GitHub Actions clone-bootstrap workflow.
+  The pre-existing iOS guest PID 53180 was not stopped or modified. Only
+  idle/unused Studio GUI test windows were closed to validate source launch.
+- README now leads with normal clone / cd / start.cmd instructions; the
+  complete advanced rebuild guide remains below and is not needed to run.
+  Fresh public-checkout/no-system-Python acceptance is the final check.
+  Rechecked the public dependency release: not a draft, two public assets,
+  142484753-byte ZIP with the source-pinned SHA-256. All 514 ZIP entries
+  passed a private-media/credential-file exclusion check. The test source
+  GUI is idle, unconfigured and not attached to the existing iPhone; it can
+  be closed gracefully for fresh-checkout GUI acceptance without stopping
+  the unrelated, already-running QEMU process.
+  This task does not claim a new clean-PC Apple-firmware-to-iPhone boot test;
+  users must still authorise the in-app Apple download before first device
+  creation. Existing prepared-root install/launch evidence remains valid.
+
 ## 2 November 2026 - main is the complete Studio source branch
 
 - Supersedes the documentation-only main/source-branch split below. Merged
