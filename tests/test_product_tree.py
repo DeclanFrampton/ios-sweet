@@ -14,6 +14,7 @@ sys.path[:0]=[str(ROOT/'desktop'),str(ROOT/'tools')]
 import adt
 import mkadt
 import product_tree
+import device_connection
 
 
 def load(name,path):
@@ -105,6 +106,23 @@ class BootFailureTests(unittest.TestCase):
         extractor=load('_test_product_extractor',ROOT/'tools/extract-im4p-adt.py')
         for data in (b'',b'\x30',b'\x30\x82\x01',b'\x30\x80',b'\x30\x85\0\0\0\0\0'):
             with self.assertRaises(ValueError):extractor.tlv(data,0)
+
+
+class ExitingProcessTests(unittest.TestCase):
+    class Api:
+        def __init__(self,codes,path='qemu-system-aarch64.exe',query=True):
+            self.codes=iter(codes);self.path=path;self.query=query
+        def GetExitCodeProcess(self,handle,output):output._obj.value=next(self.codes);return True
+        def QueryFullProcessImageNameW(self,handle,flags,buffer,size):buffer.value=self.path;return self.query
+    def test_already_exited_process_is_not_running(self):
+        self.assertIsNone(device_connection.live_process_image(self.Api([0]),123))
+    def test_exit_during_path_query_is_not_an_identity_failure(self):
+        self.assertIsNone(device_connection.live_process_image(self.Api([259,0],query=False),123))
+    def test_running_process_path_failure_remains_fail_closed(self):
+        with self.assertRaisesRegex(RuntimeError,'Cannot verify running'):
+            device_connection.live_process_image(self.Api([259,259],query=False),123)
+    def test_verified_live_path_is_returned(self):
+        self.assertEqual(device_connection.live_process_image(self.Api([259,259]),123),'qemu-system-aarch64.exe')
 
 
 if __name__=='__main__':unittest.main()

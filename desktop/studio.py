@@ -89,13 +89,14 @@ class Studio:
         k=ctypes.windll.kernel32;k.OpenProcess.restype=ctypes.c_void_p
         k.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
         k.QueryFullProcessImageNameW.argtypes=[ctypes.c_void_p,wintypes.DWORD,wintypes.LPWSTR,ctypes.POINTER(wintypes.DWORD)]
+        k.GetExitCodeProcess.argtypes=[ctypes.c_void_p,ctypes.POINTER(wintypes.DWORD)]
         k.CloseHandle.argtypes=[ctypes.c_void_p]
         h=k.OpenProcess(0x1000,False,int(r['qemu_pid']))
         if not h:return None
         try:
-            size=wintypes.DWORD(32768);buf=ctypes.create_unicode_buffer(size.value)
-            if not k.QueryFullProcessImageNameW(h,0,buf,ctypes.byref(size)):raise RuntimeError('Cannot verify QEMU process.')
-            if not Path(buf.value).samefile(Path(c['qemu'])/'qemu-system-aarch64.exe'):raise RuntimeError('Active PID belongs to a different application.')
+            image=device_connection.live_process_image(k,h)
+            if image is None:return None
+            if not Path(image).samefile(Path(c['qemu'])/'qemu-system-aarch64.exe'):raise RuntimeError('Active PID belongs to a different application.')
         finally:k.CloseHandle(h)
         run=Path(r['run']).resolve()
         if not run.is_relative_to(Path(c['state']).resolve()):raise RuntimeError('Active run escaped its state directory.')

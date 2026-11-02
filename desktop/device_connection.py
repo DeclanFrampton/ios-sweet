@@ -12,6 +12,28 @@ from pathlib import Path
 import subprocess
 
 
+def live_process_image(api, handle):
+    """An exited process handle can briefly outlive its executable pathname.
+
+    Treat a confirmed exit as stopped, not as an identity-check failure.
+    Still fail closed if a running process's path cannot be verified.
+    Caller owns/always closes the handle and configures the Windows API types.
+    """
+    from ctypes import wintypes
+    def running():
+        code=wintypes.DWORD()
+        if not api.GetExitCodeProcess(handle,ctypes.byref(code)):
+            raise RuntimeError('Cannot verify QEMU process exit state.')
+        return code.value==259  # STILL_ACTIVE
+    if not running():return None
+    size=wintypes.DWORD(32768);buffer=ctypes.create_unicode_buffer(size.value)
+    if not api.QueryFullProcessImageNameW(handle,0,buffer,ctypes.byref(size)):
+        if not running():return None
+        raise RuntimeError('Cannot verify running QEMU process image.')
+    if not running():return None
+    return buffer.value
+
+
 def read_json(path: Path, limit=256*1024):
     if not path.is_file() or path.stat().st_size > limit:
         raise ValueError('Missing or oversized Studio metadata: '+path.name)

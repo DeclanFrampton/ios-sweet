@@ -58,6 +58,25 @@
   acceptance, then restore the original baseline guest/UI before finishing.
   Do not claim the screenshot PC was modified or that first boot is complete
   from an HTTP 200, guest-agent response or boot logo alone.
+- Main fix `ef3cae2` published; independent Windows CI `41536250312` passed
+  every step, including bootstrap/downloaded decoder preflight, all source
+  tests, the complete native boot-payload chain without research firmware,
+  preparation-engine boot, exact-length transport and UI regressions.
+  Public r3 was downloaded through the unmodified user start.cmd path and
+  its archive/inventory passed; the downloaded runtime repeated payload CI.
+- Fresh Apple-generated image progressed to an authenticated v7 agent and
+  empty-library response. It remained on Apple logo during the bounded test;
+  later guest queries intermittently timed out. Preserve that distinction:
+  startup-file repair is verified, fresh home-screen/app launch is not.
+  Evidence saved to product-tree-fix/fresh-boot-acceptance.json. The test
+  guest was then shut down through QMP; its disk/config remain private.
+- Found and fixed an independent Windows exit race during controlled stop:
+  an exited process handle can briefly remain open after its executable name
+  becomes unavailable. active() now checks the exit code before/after the
+  path query and treats only confirmed exit as stopped; a running process
+  with an unverifiable path still fails closed. Four regression cases added.
+  All 128 Python tests pass. Original baseline disk has been restarted as
+  PID 11476 with its same overlay; readiness/UI restoration is being checked.
 
 ## 2 November 2026 - rapid first-device failure / exact-length DMG transport
 
