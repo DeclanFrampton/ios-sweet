@@ -1,5 +1,11 @@
 # ios-sweet
 
+For IPA signing/installation on native Windows QEMU, read
+[device registration](docs/DEVICE_REGISTRATION.md). The experimental guest
+currently has **no verified Apple-registerable UDID or IPA install bridge**.
+The new `python tools/probe-ios-device-identity.py` tool queries the actual
+guest lockdown service and fails closed instead of inventing an identifier.
+
 **Apple's iOS 16 running on a Redmi Note 10 Pro.**
 
 This project ports Apple's open-source XNU kernel (xnu-8796, the iOS 16 generation) to the Xiaomi Redmi Note 10 Pro (`sweet`, Qualcomm SM7150 / Snapdragon 732G). On top of it runs the **unmodified iOS 16.7.16 (20H392) userland of the iPhone X**: launchd, the system daemons, backboardd, SpringBoard and the stock apps.

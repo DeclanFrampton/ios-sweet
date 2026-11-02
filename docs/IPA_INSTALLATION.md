@@ -7,6 +7,11 @@ does **not** target this guest. Do not claim that copying an `.ipa` file to
 the Windows filesystem, starting Safari, or receiving HTTP 200 from the
 viewer means the app was installed.
 
+For a read-only attempt to query the real guest lockdown device ID, see
+[device registration](DEVICE_REGISTRATION.md) and
+`python tools/probe-ios-device-identity.py`. The live guest has not returned
+a UDID; do not substitute an invented value when requesting Apple signing.
+
 ## Safe read-only preflight
 
 Run on the Windows host:
