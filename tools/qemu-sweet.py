@@ -104,7 +104,16 @@ def stub(ba_pa, entry_pa):
     return struct.pack('<4I2Q', 0x58000080, 0x580000a1, 0xd61f0020, 0xd503201f, ba_pa, entry_pa)
 
 
-def write_png(path, raw):
+def encode_png(raw, compression=6):
+    """Encode the physical BGRA framebuffer without third-party image packages.
+
+    A low compression level is useful for live viewing; keep the historical
+    level-6 default for snapshot artifacts.
+    """
+    if len(raw) != FB_STRIDE * FB_H:
+        raise ValueError('Framebuffer length mismatch')
+    if not 0 <= compression <= 9:
+        raise ValueError('Invalid PNG compression level')
     rows = []
     for y in range(FB_H):
         line = raw[y * FB_STRIDE:(y + 1) * FB_STRIDE]
@@ -113,8 +122,13 @@ def write_png(path, raw):
         rows.append(b'\0' + bytes(rgb))
     chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
     png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', FB_W, FB_H, 8, 2, 0, 0, 0))
-    png += chunk(b'IDAT', zlib.compress(b''.join(rows), 6)) + chunk(b'IEND', b'')
-    open(path, 'wb').write(png)
+    png += chunk(b'IDAT', zlib.compress(b''.join(rows), compression)) + chunk(b'IEND', b'')
+    return png
+
+
+def write_png(path, raw):
+    with open(path, 'wb') as file:
+        file.write(encode_png(raw))
 
 
 def payload_data(payload, va, size):
@@ -163,8 +177,7 @@ def screen_result(screen, unknown):
 
 def qmp(sock_path, *cmds, pmemsave=None):
     """Run QEMU human-monitor commands over QMP (synchronous, unlike the echoing HMP socket)."""
-    s = socket.socket(socket.AF_UNIX)
-    s.connect(sock_path)
+    s = connect_qmp(sock_path)
     f = s.makefile('rw')
     f.readline()
 
@@ -191,6 +204,21 @@ def qmp(sock_path, *cmds, pmemsave=None):
     return out
 
 
+def connect_qmp(endpoint):
+    """Unix socket in Linux/Docker, loopback-only TCP for native Windows QEMU."""
+    address = str(endpoint)
+    if address.startswith('tcp://'):
+        from urllib.parse import urlsplit
+        uri = urlsplit(address)
+        if uri.hostname not in ('127.0.0.1', 'localhost', '::1') or not uri.port:
+            raise ValueError('QMP TCP must use loopback only')
+        return socket.create_connection((uri.hostname, uri.port), timeout=8)
+    sock = socket.socket(socket.AF_UNIX)
+    sock.settimeout(8)
+    sock.connect(address)
+    return sock
+
+
 def shutdown_qemu(proc, monitor):
     """Flush QCOW2 metadata on a normal QEMU exit; SIGKILL is last resort.
 
@@ -201,9 +229,7 @@ def shutdown_qemu(proc, monitor):
     if proc.poll() is not None:
         return
     try:
-        with socket.socket(socket.AF_UNIX) as s:
-            s.settimeout(3)
-            s.connect(monitor)
+        with connect_qmp(monitor) as s:
             f = s.makefile('rw')
             f.readline()
             f.write(json.dumps({'execute': 'qmp_capabilities'}) + '\n')
@@ -254,7 +280,8 @@ def main():
     )
     ap.add_argument('payload', nargs='?', help='SWEETXNU payload binary (from mkpayload.py)')
     ap.add_argument('outdir', nargs='?', help='Output directory for fb.png, regs.txt, and logs')
-    ap.add_argument('--secs', type=float, default=20, help='Duration to run QEMU in seconds (default: 20)')
+    ap.add_argument('--secs', type=float, default=20,
+                    help='Duration in seconds (default: 20); 0 runs until stopped')
     ap.add_argument('--gdb', action='store_true', help='start halted, gdb stub on :1234, no timeout')
     ap.add_argument('--hmp', action='append', default=[], help='extra monitor command run after stop (repeatable), e.g. "x /8gx 0xfffffe..."')
     ap.add_argument('--cpu', default='cortex-a76', help='QEMU CPU model (default: cortex-a76)')
@@ -271,6 +298,8 @@ def main():
     ap.add_argument('--network', action='store_true', help='QEMU VirtIO MMIO Ethernet with user-mode NAT; requires networking kernel')
     ap.add_argument('--check-env', action='store_true', help='check QEMU installation and dependencies without running a payload')
     a = ap.parse_args()
+    if a.secs < 0:
+        ap.error('--secs must be zero (unlimited) or a positive duration')
 
     if a.check_env:
         ok = check_qemu_dependency(a.cpu)
@@ -387,7 +416,7 @@ def main():
             return 0
 
         t0 = time.time()
-        while p.poll() is None and time.time() - t0 < a.secs:
+        while p.poll() is None and (a.secs == 0 or time.time() - t0 < a.secs):
             if a.live_serial:
                 serial_pos = stream_serial_file(serial_file, serial_pos)
             time.sleep(0.2)

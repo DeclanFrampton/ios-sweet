@@ -4,11 +4,11 @@ A native Windows desktop workspace for an experimental, locally emulated
 **iPhone running iOS 16.7.16**: embedded iPhone viewer, IPA file selection,
 local development signing, installation, app library and launch controls.
 
-> **Preview / source build.** Studio source lives on
-> [`windows-qemu-virtio`](https://github.com/danhol86/ios-sweet/tree/windows-qemu-virtio).
-> The full build guide below is also shown on this repository's default
-> GitHub page so newcomers can find it. Follow its branch-specific clone
-> command; the default `main` tree does not contain the Studio application.
+> **Preview / source build.** The Studio desktop app, guest installer,
+> build tooling, tests and complete instructions are all on
+> [`main`](https://github.com/danhol86/ios-sweet/tree/main), the default branch.
+> A normal clone includes the full project; no separate development branch
+> is needed. The installer release and clean-PC acceptance remain pending.
 
 ## Current status and scope
 
@@ -36,8 +36,8 @@ experimental development environment, not a secure personal iPhone.
 ## Where to start
 
 - **Developers:** use [the full source-build instructions below](#build-ios-sweet-studio-from-source).
-- **Reading just the guide:** [standalone build guide](https://github.com/danhol86/ios-sweet/blob/windows-qemu-virtio/docs/STUDIO_SOURCE_BUILD.md).
-- **Existing development guest:** [native Windows notes](https://github.com/danhol86/ios-sweet/blob/windows-qemu-virtio/docs/NATIVE_WINDOWS.md) and [guest installation bridge](https://github.com/danhol86/ios-sweet/blob/windows-qemu-virtio/tools/guest-install/README.md).
+- **Reading just the guide:** [standalone build guide](https://github.com/danhol86/ios-sweet/blob/main/docs/STUDIO_SOURCE_BUILD.md).
+- **Existing development guest:** [native Windows notes](https://github.com/danhol86/ios-sweet/blob/main/docs/NATIVE_WINDOWS.md) and [guest installation bridge](https://github.com/danhol86/ios-sweet/blob/main/tools/guest-install/README.md).
 - **Downloads:** check [GitHub Releases](https://github.com/danhol86/ios-sweet/releases) for an explicitly named Studio release; do not mistake the older Docker ZIP for the new desktop app.
 - **Original physical-phone port:** preserved in the historical section at the bottom. Its flashing instructions do not apply to desktop Studio.
 
@@ -51,9 +51,10 @@ in the same terminal unless a block explicitly says **macOS** or **container**.
 Nothing below requires deleting a disk, disabling Windows security, flashing
 a phone, or stopping unrelated Docker containers.
 
-The source is on **`windows-qemu-virtio`**. The fork's default `main` README
-also displays this guide, but **checking out `main` is not enough to build
-Studio**. Use the branch in the clone command below.
+The complete Studio source, guest helpers, installer, tests and this guide
+are on the default **`main`** branch of **`danhol86/ios-sweet`**. A normal
+clone contains everything in this guide; no feature-branch checkout is
+required. The explicit `--branch main` below also documents that choice.
 
 ### What is being built
 
@@ -112,7 +113,7 @@ ARM64 iOS runs under QEMU TCG software emulation.
 ### 2. Clone the correct branch and create an isolated Python environment
 
 ```powershell
-git clone --branch windows-qemu-virtio https://github.com/danhol86/ios-sweet.git
+git clone --branch main https://github.com/danhol86/ios-sweet.git
 if ($LASTEXITCODE -ne 0) { throw 'Clone failed' }
 Set-Location ios-sweet
 
@@ -151,7 +152,7 @@ OneDrive. QEMU preparation rejects paths containing **commas**. The generated
 Obtain a 64-bit Windows distribution through the
 [official QEMU download page](https://www.qemu.org/download/). This project
 has been exercised with the QEMU 11.1 development build recorded in
-[the component notices](https://github.com/danhol86/ios-sweet/blob/windows-qemu-virtio/desktop/THIRD_PARTY_NOTICES.md).
+[the component notices](https://github.com/danhol86/ios-sweet/blob/main/desktop/THIRD_PARTY_NOTICES.md).
 A different release needs its own boot/install test; do not equate a newer
 version with verified compatibility.
 
@@ -479,17 +480,17 @@ publish the EXE/ZIP/checksums as a clearly labelled preview release.
 ### 12. Rebuild the XNU kernel or external dependencies
 
 **XNU from source:** fork this repository under an account you control, enable
-Actions, and ensure your fork has the `windows-qemu-virtio` branch. The checked-in
-[`xnu.yml` workflow](https://github.com/danhol86/ios-sweet/blob/windows-qemu-virtio/.github/workflows/xnu.yml)
+Actions, and ensure your fork has the `main` branch. The checked-in
+[`xnu.yml` workflow](https://github.com/danhol86/ios-sweet/blob/main/.github/workflows/xnu.yml)
 uses a macOS runner, Apple's open XNU sources and this repository's ordered
 patch series. You can trigger it from Windows:
 
 ```powershell
 $KernelRepo = Read-Host 'Your fork in owner/ios-sweet form'
-gh workflow run xnu.yml --repo $KernelRepo --ref windows-qemu-virtio `
+gh workflow run xnu.yml --repo $KernelRepo --ref main `
     -f macos_version=13.5 -f kernel_config=DEVELOPMENT -f machine_config=SWEET
 if ($LASTEXITCODE -ne 0) { throw 'Workflow dispatch failed' }
-gh run list --repo $KernelRepo --workflow xnu.yml --branch windows-qemu-virtio --limit 5
+gh run list --repo $KernelRepo --workflow xnu.yml --branch main --limit 5
 $RunId = Read-Host 'Run ID belonging to the workflow you just started'
 gh run watch $RunId --repo $KernelRepo --exit-status
 if ($LASTEXITCODE -ne 0) { throw 'XNU build failed; inspect its logs' }
@@ -528,7 +529,7 @@ passing its path to `desktop/build.py`.
 
 | Symptom | Check / next action |
 | --- | --- |
-| `desktop/studio.py` is missing after clone | You checked out `main` or upstream `dipa-studio/ios-sweet`, not this fork's `windows-qemu-virtio` branch. |
+| `desktop/studio.py` is missing after clone | Confirm the remote is `danhol86/ios-sweet`, not upstream `dipa-studio/ios-sweet`, then switch to `main` and update with `git pull --ff-only`. An old checkout may predate Studio. |
 | Python package import fails | Use the venv's `$Py`, install `desktop/requirements.txt`, and confirm 64-bit CPython. Do not mix Python installations. |
 | GUI fails to create its browser window | Install the WebView2 Evergreen x64 runtime and verify .NET Framework/Python.NET dependencies; see [pywebview's installation guide](https://pywebview.flowrl.com/guide/installation). |
 | Compiler or SDK not found | Build `desktop/helper-toolchain.Dockerfile`; mount the device SDK at `/opt/apple/sdk`; check `SDKSettings.plist` and `clang --version`. |
@@ -569,7 +570,7 @@ registered, started as a process, or visibly rendered and interacted with.
 - [LLVM signed Ubuntu repositories](https://apt.llvm.org/)
 - [QEMU downloads](https://www.qemu.org/download/) and [build environments](https://www.qemu.org/docs/master/devel/build-environment.html)
 - [Apple SDK/Xcode distribution](https://developer.apple.com/xcode/resources/)
-- [Component provenance and notices](https://github.com/danhol86/ios-sweet/blob/windows-qemu-virtio/desktop/THIRD_PARTY_NOTICES.md)
+- [Component provenance and notices](https://github.com/danhol86/ios-sweet/blob/main/desktop/THIRD_PARTY_NOTICES.md)
 
 The root README includes this guide in full. Update both copies together; the
 documentation check verifies that the README's source-build block matches.
@@ -585,6 +586,17 @@ The material below is preserved engineering history. Dates, hardware claims
 and older Docker installation steps do not override the Studio status and
 source-build requirements above. Desktop users should not flash a phone.
 
+**Native Windows IPA test (2 November 2026):** the supplied `com.iosnova`
+IPA has now been locally signed, registered with the guest's LaunchServices,
+launched as a real iOS process, and rendered its interactive **Simple**
+sign-in / Create account screens. See [IPA installation](docs/IPA_INSTALLATION.md)
+and the [isolated guest bridge](tools/guest-install/README.md).
+
+This uses a **local development installation path**, not Apple Ad Hoc device
+provisioning. The guest still reports only a placeholder identity, not an
+Apple-registerable UDID; no fake hardware identifier is submitted to Apple.
+Only the supplied app has passed the full install-and-render acceptance test.
+
 **Apple's iOS 16 running on a Redmi Note 10 Pro.**
 
 This project ports Apple's open-source XNU kernel (xnu-8796, the iOS 16 generation) to the Xiaomi Redmi Note 10 Pro (`sweet`, Qualcomm SM7150 / Snapdragon 732G). On top of it runs the **unmodified iOS 16.7.16 (20H392) userland of the iPhone X**: launchd, the system daemons, backboardd, SpringBoard and the stock apps.
@@ -593,24 +605,83 @@ As of **2026-10-18** the phone boots to the **iOS home screen**. You can unlock 
 
 ## Windows / Docker preview — install from GitHub
 
-For **Windows**, download the checked
+For **Windows**, download the
 **[Docker preview installer ZIP](https://github.com/danhol86/ios-sweet/releases)**,
-extract it and double-click **`Install-iOS-Sweet.cmd`**. You need
-[Docker Desktop](https://www.docker.com/products/docker-desktop/) in Linux
-containers mode. This does **not** require a separate Ubuntu WSL distribution.
+extract it and double-click **`Install-iOS-Sweet.cmd`**. The installer can
+install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+using Windows Package Manager if needed (UAC and a restart may be required).
+It uses Linux containers but does **not** require a separate Ubuntu WSL
+distribution.
 
 **Important:** This public download contains the installer, Docker scripts,
-and our network bootstrap, **not a bootable Apple operating system**. To start
-the emulator, supply your own prepared iOS 16 HFSX root disk, a compatible
-QEMU SWEET XNU kernel, and an iPhone X D22AP device tree. The installer
-offers file pickers and remembers your choices. See the
+and our network bootstrap, **not a bootable Apple operating system**. Newer
+installer versions automatically retrieve the verified open-source XNU kernel,
+then download official iPhone X iOS 16.7.16 firmware directly from Apple
+and prepare a **private** iOS HFSX disk locally. The first preparation needs
+at least **35 GiB of free disk space** and may require a substantial download.
+Manual file pickers remain available if automatic preparation cannot work
+on your machine. See the
 **[GitHub installation guide](docs/GITHUB_INSTALL.md)** for preparation steps
 and the [Docker-only technical notes](docs/ONE_CLICK_DEPLOY.md).
 
-The iOS GUI and Safari launch. Guest DNS/TCP connectivity now works in
-testing, but **Safari web pages can still render blank**; this is an
-experimental development preview, not a complete iOS simulator. The
-Windows/Docker installer never flashes the phone.
+The iOS GUI and Safari launch. Guest DNS/TCP connectivity is verified,
+and the **native Windows QEMU** setup has rendered real external HTTPS
+pages in Safari. Some pages or fresh sessions may still render blank or
+take an unusually long time to repaint. This remains an experimental
+development preview, not a complete or fast iOS simulator. The installer
+never flashes the phone.
+
+### Direct Windows QEMU runtime (development branch)
+
+There is also an experimental **native Windows QEMU** launch path that does
+not run the emulator in Docker or WSL. Install Windows QEMU, supply the
+locally prepared private iOS disk and verified kernel, then double-click
+`Start-iOS-Sweet-Windows.cmd`. It preserves the previous Docker guest
+overlay by making a separate copy for Windows. See
+**[Native Windows installation and limitations](docs/NATIVE_WINDOWS.md)**.
+
+On x86 Windows, the verified QEMU build offers **TCG software emulation,
+not hardware-accelerated ARM64**. A substantial speedup is not guaranteed,
+and the 7 GiB iOS guest requires enough free host memory. On 30 October
+2026 the native Windows QEMU guest reached the lock screen, home screen
+and Safari using its preserved private save. Its initial Safari attempt
+rendered blank; subsequent tests on 30-31 October successfully loaded Google
+over HTTPS, including its real consent UI. Rendering remains very slow.
+
+On the tested PC, QEMU, the private 16 GiB iOS disk, kernel, writable
+overlay and logs live under `D:\Projects\ios-sweet\windows-runtime`.
+The dedicated iOS Sweet Docker containers, images and generated firmware
+working files were removed. Unrelated Docker Desktop services were
+left running.
+
+**Updated 30 October 2026:** A later live Windows run (with the optional
+software sRGB display mode) successfully rendered Google's HTTPS page and
+consent dialog and the independently hosted `https://example.com` page in
+Safari, both with secure HTTPS lock icons. A local HTTP control loaded HTML, CSS,
+text, an image and a JavaScript-requested resource. This establishes that
+browser networking and rendering *can* work, though the unaccelerated
+ARM64 guest is still extremely slow. Repeatability across websites and
+fresh boots is not yet fully validated; see `docs/SAFARI_NETWORK_DIAG.md`.
+
+**31 October 2026 follow-up:** The Windows 2-CPU build is now verified across
+multiple boots, including Safari rendering Google over HTTPS. Its locally
+optional `0098` quiet-logging kernel successfully booted and rendered the
+same real external HTTPS page, both on an isolated candidate disk and from
+the one-click Windows launcher with the original preserved two-core save.
+The original single-core kernel/disk remain available for rollback; Docker
+and physical-phone kernel pins are unchanged. Running users can check their
+live Windows instance without modifying the guest using
+`powershell -NoProfile -File tools/Test-IosSweet-Windows.ps1`.
+This is still **software-emulated ARM64**, with significant performance
+limitations and no demonstrated long-term stability guarantee.
+
+**31 October:** An isolated two-core native Windows guest reached SpringBoard,
+loaded Google over HTTPS, and displayed example.com over HTTP. It also
+booted a second time with diagnostics disabled and loaded the HTTP page
+again. The live viewer has frame caching, adaptive refresh, faster PNG
+encoding and a batched Home gesture. The Windows test PC uses a **local-only
+two-core preference** with a saved single-core fallback; new installations
+continue to default to one core. See `docs/NATIVE_WINDOWS.md`.
 
 > **Physical-phone installation only:** Experimental bring-up, not a usable phone OS. Many things are missing or stubbed (see below), and Apple's security model is mostly switched off. Flashing the phone installs into the `userdata` partition and so **erases Android's user data**. The Windows/Docker installer does not flash a phone.
 

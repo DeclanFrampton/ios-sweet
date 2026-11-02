@@ -29,9 +29,12 @@ Prerequisites:
    `xnu-kernel` artifact. Preparing the iOS disk itself is still an
    experimental, separate workflow.
 
-**Double-click `Install-iOS-Sweet.cmd`.** The setup checks Docker and asks
-for any missing kernel, iOS disk or device-tree file, validates the image
-mounts, builds the QEMU image, prepares its private network-enabled
+**Double-click `Install-iOS-Sweet.cmd`.** The setup checks Docker and
+installs official Docker Desktop through winget if necessary. On a fresh
+machine it downloads the verified open-source XNU kernel, selects the
+exact iPhone X iOS 16.7.16 components from Apple's firmware manifest,
+and builds a private HFSX iOS disk inside Docker. It then validates
+the image mounts, builds the QEMU image, prepares a network-enabled
 guest overlay, and creates the desktop shortcut
 **iOS Sweet (Docker)**. Subsequent launches reuse the saved file paths in
 `docker/local-config/windows.json` (ignored by Git); no Ubuntu shell, WSL
@@ -41,6 +44,27 @@ The saved paths are not baked into the Docker image.
 The browser opens `http://127.0.0.1:8108/` when the guest viewer is ready.
 The iOS boot itself takes longer. Press **Swipe up / Home** in the viewer to
 unlock or return to SpringBoard.
+
+**Fresh-IPSW smoke test (30 October 2026):** All Apple firmware downloads
+completed with CRC verification; the device tree exactly matched the
+previously verified tree; a 16 GiB HFSX filesystem was built, checked with
+`fsck.hfsplus`, and ran the iOS root tweaks. A single clean QEMU guest
+booted that image through launchd and executed SpringBoard/backboardd,
+but **did not reach the interactive lock screen** during the initial
+several-minute smoke test. Subsequent read-only comparison revealed that
+38 of 39 dyld cache files matched the older interactive image; subcache
+`.15` differed by just one four-byte ARM64 instruction at offset
+`0x1619f0c`. The SHA-256-gated patcher applies this QEMU-only
+MobileGestalt/LaunchServices workaround to newly generated *local* disks,
+not a public image. The second boot and Safari remain under verification.
+This is not a stable release.
+
+The new root also lacked all 13 standard system data containers present
+in the older interactive build. The updated root preparation creates
+these containers with fresh local UUIDs and the verified iOS 16 metadata
+schema (the synthetic test proves idempotency), then seeds the
+`mobileactivationd` activation data ark. This is an experimental
+QEMU-only first-boot compatibility step, not a copy of private device data.
 
 The container mounts all three supplied inputs **read-only** and uses the
 separate persistent `docker/local-state/oneclick/ios.qcow2` overlay
@@ -52,8 +76,27 @@ publishing active IPv4 and DNS state. No installed disk outside the overlay
 is modified; re-running setup verifies the bootstrap instead of duplicating
 it.
 This means an iOS reboot preserves state without changing the original disk.
+The default QEMU run duration is now unlimited (0 seconds means until
+explicitly stopped), preventing the viewer from disappearing after two
+hours while the container is running.
 Do not share the same overlay between two simultaneously running instances.
 The viewer binds only to localhost.
+
+**QEMU black-screen diagnosis (30 October 2026):** The live guest's
+kernel console shows `SWEET FB: display off` after the initial
+framebuffer swaps. The browser Home control sends tablet swipes, not
+the physical power key, so it does not wake the display. New XNU patch
+`0097-sweet-qemu-display-keep-awake.patch` suppresses *only* this
+power-off transition when QEMU passes `sweet_qemu_keep_awake=1`.
+Physical SWEET devices retain normal display sleep. A newly rebuilt
+XNU kernel is required for the *source-based* fix. Pending a published
+build, the installer can apply the exact matching one-instruction change to
+a separate copy of the verified original development kernel in the user's
+private assets folder. Both original and patched SHA-256 hashes are pinned.
+Live QEMU validation showed the Apple logo **remained visible after the
+`SWEET FB: display off` call**; a stock kernel blacked out the same panel.
+The guest also exhibits a mobileactivationd SIGTRAP
+crash loop, which is a **separate** unsolved iOS startup problem.
 
 ## Running without the installer / in CI
 
@@ -93,16 +136,17 @@ Docker**, not a standalone WSL Ubuntu environment.
 
 The packaging tool archives committed Git files only, validates the archive,
 rejects private Apple/guest media, and writes a SHA-256 manifest.
-It does not include the large local iOS image or a built kernel. If packaging
+It does not include the large local iOS image or a built kernel. On a
+fresh install these are sourced and prepared automatically where possible.
+If packaging
 from a developer branch, first commit its changes; otherwise the ZIP will
 contain the earlier committed tree.
 
 ## Current Safari networking state
 
-Networking is **on by default** using the local kernel
-`xnu/out-qemu-network-0099/kernel.development.sweet`, and a private
-guest overlay distinct from all earlier tests. On another machine,
-choose the verified network-enabled kernel using the file picker.
+Networking is **on by default** using the verified network-enabled kernel
+(downloaded automatically from our release when a local one is absent),
+and a private guest overlay distinct from earlier tests.
 The first boot publishes QEMU `en0=10.0.2.15/24`, route
 `10.0.2.2`, DNS `10.0.2.3` and the corresponding dynamic IPv4/DNS
 service state as root. The bootstrap is restricted to the QEMU guest

@@ -1,5 +1,514 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 2 November 2026 - main is the complete Studio source branch
+
+- Supersedes the documentation-only main/source-branch split below. Merged
+  the complete published windows-qemu-virtio history at 41ff8f1 together
+  with the existing main homepage update at e869857. All Studio application
+  code, guest install bridge, build tools, installer, tests and documentation
+  are now consolidated on main without discarding either branch's history.
+- Resolved the README-only merge conflict by preserving the supplied-app
+  acceptance history. The inline/standalone build guide, source links,
+  clone commands and XNU workflow examples now point to main. Added a
+  regression test preventing feature-only branch instructions from returning.
+- Verified in an isolated worktree: 59 Python tests passed; adaptive-viewer
+  and pointer/navigation JavaScript suites passed; Python compilation passed.
+  Functional source and XNU patches match the published Studio branch; valid
+  unified-patch context whitespace is unchanged. No kernel or runtime binary
+  was rebuilt for this branch-consolidation task.
+- Preserve the existing emulator, private disks, caches, user IPAs and keys.
+  The running QEMU PID remained 53180 throughout validation. Generated data
+  remains ignored. Historical research worktrees/branches are not deleted.
+- This consolidates source and instructions; it does NOT publish a new Studio
+  installer or claim completion of the outstanding clean-PC first-run test.
+
+
+## 2 November 2026 - Studio source-build documentation and publication
+
+- User requested complete build-from-source instructions on the GitHub
+  README. Added the full Windows Studio build guide both inline in README.md
+  and at docs/STUDIO_SOURCE_BUILD.md, with a test that keeps them identical.
+  The source branch remains windows-qemu-virtio; main receives the full guide
+  as a documentation-only homepage update, not a code/firmware merge.
+- Published the previously local Studio source and its required guest/native
+  integration changes so a fresh source checkout contains the referenced
+  app, package builder, installer, preparation appliance and tests. No
+  Windows executable, private IPA, Apple SDK/firmware, local bridge secret,
+  raw/QCOW2 disk or generated build output is staged.
+- Removed the undocumented dependency on a private NovaForge build image
+  from the public recipe: desktop/helper-toolchain.Dockerfile builds Ubuntu
+  plus signed LLVM 23 packages. The SDK remains a separate authorised,
+  read-only mount. Built that image, compiled both ARM64 guest helpers,
+  ad-hoc signed the entitled agent and verified the Mach-O architectures.
+  Outputs for these checks live only under ignored
+  windows-runtime/documentation-check/helpers; live guest assets unchanged.
+- Validation: all 58 Python tests passed; adaptive-poll and pointer/gesture
+  JavaScript suites passed; all 12 PowerShell README examples parsed with
+  zero errors; the manifest Python example compiled; build.py CLI flags and
+  documented source paths were checked; git diff --check passed.
+- The guide separates build-time Docker/SDK/Node/Python requirements from
+  the packaged Windows-native runtime, includes upstream download checks,
+  kernel pinning/rebuild policy, optional dependencies, first-run setup,
+  packaging/checksums, troubleshooting and privacy/rollback boundaries.
+- Status remains explicit: local Studio package and prepared-root app path
+  exist, but no Studio release has been published and complete clean-PC
+  Apple-download/root-preparation/install acceptance is still outstanding.
+  This documentation task did not restart QEMU or modify device disks.
+
+## 2 November 2026 — supplied IPA installed and rendered in native QEMU
+
+- Built a real ARM64 in-guest development agent and localhost-only host
+  control panel. This is now an actual install/registration/launch path,
+  not just an archive preflight or a speculative lockdown probe.
+- Supplied `com.iosnova` IPA (original SHA-256
+  `f468300c3f171c310a9448be1dadd46f180e1dcc7978ae162d50d00fdc18c87a5f`)
+  was copied privately, its metadata normalised, and its executable plus
+  embedded frameworks locally ad-hoc-signed with no Apple account keys.
+  Original Downloads IPA, baseline Apple raw disk and normal guest overlays
+  are unchanged.
+- Fixed three observed blockers in the isolated helper/app: a 6 MiB helper
+  process limit (bounded to 256 MiB for itself only); missing app-management
+  entitlements (added to the helper's local signature and verified through
+  SecTask); and dyld rejecting the app's embedded `@rpath` framework names
+  (private bundle libraries changed to their exact test-guest paths, then
+  the entire bundle re-signed). System dyld and global code-signing/jetsam
+  policy were not patched for this experiment.
+- V6 guest registered `/Applications/iOSNova.app` through LaunchServices,
+  accepted a real launch and ran PID 324. The framebuffer showed **Simple**
+  sign-in; a touch switched to **Create account** with name/email/password
+  fields, with the same process still running. No credentials submitted or
+  user account created. Local panel launch after Home also succeeded.
+  Private evidence: `windows-runtime/experiments/install-20261102/`
+  `iosnova-running.png` and `iosnova-interaction.png`.
+- Guest MobileGestalt actually returned an all-`f` placeholder. The helper
+  rejects it and reports `udid: null`; its persistent VM instance UUID is
+  explicitly not an Apple hardware UDID. **Apple Developer registration
+  remains unverified** and is not used by this successful local test path.
+- Added `Start-iOS-Sweet-Apps.cmd`, `tools/Start-IosSweet-Apps.ps1`, and the
+  Windows desktop shortcut **iOS Sweet Apps**. Local controls are at
+  `http://127.0.0.1:8109/`; the iPhone screen stays at `http://127.0.0.1:8108/`.
+  The ignored `windows-runtime/state/app-install-test.json` chooses the
+  tested private V6 overlay and pinned quiet-AKS kernel. The launcher
+  validates hashes and paths and reuses only a matching active guest;
+  original `Start-iOS-Sweet-Windows.cmd` remains the baseline fallback.
+- Preserved baseline backup `cpu2-before-install-20261102.qcow2` SHA-256
+  `53da4174ba2071465fba6cf9a572aca2590dc5bd18af820f23eba81d1a0ea47d`.
+  After successful app rendering, cleanly stopped the test guest and saved
+  `windows-runtime/backups/iosnova-installed-verified-20261102.qcow2`,
+  checksum `87e9be6dbbffac4912ec71054383d4660ac26eb3708a8a4a31f0d95369793a33`.
+  Restarted through the new app launcher into QEMU PID 54204, run
+  `windows-qemu-20261102-132831`, same V6 overlay. At 13:32 UTC the guest
+  independently reported `registered:true` **without re-registering or
+  reinstalling**. At 13:33 UTC the restarted guest accepted launch, ran
+  `/Applications/iOSNova.app/iOSNova` as new PID 239, and again rendered the
+  Simple sign-in form. Private screenshot:
+  `windows-runtime/experiments/install-20261102/iosnova-after-restart.png`.
+  Leave this verified app guest running for the user's test.
+- All 39 Python tests, both viewer JavaScript suites, the panel JavaScript
+  syntax check and Windows launcher parse/config/reuse checks passed.
+  Private app files, Apple data, generated agent binary, capability token,
+  images and local manifests stay under ignored `windows-runtime/`.
+  Only this supplied app has passed full live acceptance; arbitrary IPA
+  compatibility and physical-iPhone provisioning must not be implied.
+
+## 31 October 2026 — `driverkitd` jetsam reason identified
+
+- Continued at 16:27 UTC: Windows free RAM fell to ~2 GiB, with **38**
+  Docker containers running. QEMU is stopped and the 6 GiB safety gate must
+  not be bypassed; no unrelated containers or iOS disk were altered.
+- Examined the existing 16 GiB private HFSX root read-only, parsing its
+  catalog B-tree and extracting only selected launchd/jetsam dictionaries
+  in memory. The driverkitd job in both the standalone and consolidated
+  launchd plists has `RunAtLoad=true`, `EnablePressuredExit=false`, and no
+  `JetsamProperties`. D22 and D221 policies are structurally **identical**;
+  each contains 530 `Daemon.Override` entries, but no `driverkitd`-specific
+  override or default. `Daemon.Default.Global` is empty. `DriverKit` policy
+  applies to extensions and must not be mistaken for the daemon's own limit.
+- Added `tools/inspect-hfsx-jetsam.py` for this read-only, narrowly
+  allowlisted policy inspection, with `tests/test_hfsx_jetsam.py` synthetic
+  parsing and policy-summary tests. Neither the numeric effective daemon
+  memory limit nor its resident footprint is known. Next investigate with
+  guest-side jetsam/memorystatus telemetry once safe RAM is available.
+- Scanned the HFSX catalog for saved jetsam/crash reports: found 24 `.ips`
+  files and one `.panic`; none of the report contents mentioned
+  `driverkitd`, `JetsamEvent` or `memory_perprocesslimit`. The image does
+  not contain an obvious usable report with the missing resident footprint.
+- Added an opt-in `--sample-driverkitd` / PowerShell `-SampleDriverKitd`
+  using the kernel's existing PC/backtrace sampler; 1-second delay,
+  2-second interval, *no* full network trace. It is execution tracing,
+  **not resident-memory telemetry** and does not disable jetsam. An offline
+  `--prepare-only` test built the correct two-core quiet-kernel payload;
+  confirmed all expected bootargs and zero running QEMU guests. The live
+  test awaits at least 6 GiB genuinely available Windows physical RAM.
+- Five synthetic HFSX inspection tests and the wider regression suites pass;
+  original Apple raw disk and QCOW2 backups remain untouched. Docker and its
+  currently running containers were not stopped or modified.
+
+- Analyzed archived QEMU in-memory console logs from five distinct
+  two-core Windows boots. Every boot reported `driverkitd` PID 66 killed
+  by signal 9 with `reason ns 1 code 0x7`; normalizing the image-relative
+  backtrace for ASLR yielded the exact same eight application frame offsets:
+  `0x9e6b4`, `0xe937c`, `0xea81c`, `0x2831c`, `0x7900c`, `0x9097c`,
+  `0xa6cf8`, `0xa24a8`. This is a **repeated termination path**.
+- XNU's `OS_REASON_JETSAM=1` and `JETSAM_REASON_MEMORY_PERPROCESSLIMIT=7`
+  explain the immediate exit reason: an **iOS guest process memory-limit
+  kill**, not evidence of a corrupt instruction or a Windows host OOM.
+  Sources: https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/reason.h
+  and https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/kern_memorystatus.h
+  Guest Safari and SpringBoard were independently observed working after
+  these events. Root cause of the excessive daemon footprint / limit
+  configuration is **not established**.
+- Created `tools/analyze-qemu-crashes.py` and
+  `tests/test_qemu_crash_analysis.py`, read-only ASLR-normalized crash
+  signature comparison with jetsam classification and synthetic tests.
+  Next: inspect launchd's `JetsamProperties` for the daemon and obtain
+  guest per-process memory usage immediately before its kill. Do not
+  globally disable jetsam or blindly increase service limits.
+- The expanded 17-test regression run also exposed an unrelated timing
+  assumption in the viewer's parallel snapshot test: eight concurrent
+  requests may straddle the 280 ms production reuse interval under load.
+  Added a test-only adjustable reuse interval, and both repeated suite runs
+  passed. Production's 280 ms interval is unchanged; no live guest restarted.
+- Live QEMU remains **stopped** pending at least 6 GiB Windows free RAM.
+  Docker Desktop's 35 running containers are preserved. Swipe tests
+  remain offline-passing; live swipe acceptance is still outstanding.
+
+## 31 October 2026 — smoother navigation gestures
+
+- Host metrics showed ~26 ms QMP framebuffer read and ~24 ms PNG encoding;
+  no capture errors in the last profile. These are **not** the main driver
+  of the much slower overall iOS/WebKit execution on x86 QEMU TCG.
+- Implemented fixed bounded directional swipe gestures: up, down, left,
+  right. One `/gesture` HTTP POST triggers sixteen timed QMP events on a
+  single connection, avoiding a new QMP handshake for every movement.
+  Browser UI exposes four separate navigation buttons with user-friendly
+  scroll labels; existing touch and Home controls remain unchanged.
+- 13 Python tests pass, covering direction counts, coordinate bounds, no
+  arbitrary durations/coordinates and cross-origin validation. Browser
+  simulator confirms one gesture request per button with no individual
+  touch requests; pointer-cancel recovery tests and adaptive-viewer tests
+  also pass. Revalidate the actual running QEMU after deploying backend.
+- Deployment limitation: after cleanly stopping the previous QEMU PID 45248,
+  backed up its writable two-core disk to ignored
+  `windows-runtime/backups/cpu2-before-swipes-20261031.qcow2`, SHA-256
+  `17e26dec38112f8a901f94e838264a1e6b6f068ede13fca8e0e1f8d46c2999d4`.
+  The Windows launcher correctly REFUSED startup at approximately 4.5 GiB
+  free physical RAM (required minimum: 6 GiB). Existing Docker Desktop WSL
+  VM was using roughly 10-12 GiB; all 35 unrelated running Docker containers
+  were preserved. A one-time Linux page-cache reclaim (`sync`, then root
+  `sysctl -w vm.drop_caches=3`) reduced cache from roughly 8 GiB to 1.2 GiB
+  without stopping containers, but did not free enough Windows physical RAM
+  to pass the safe startup threshold. No extra QEMU guest started; leave the
+  verified backup untouched and launch the new version only when at least
+  6 GiB is genuinely free. **Live swipe functionality is not yet verified.**
+
+## 31 October 2026 ~13:29 UTC — pointer recovery + capture metrics
+
+- Follow-up live deployment: cleanly stopped prior two-core QEMU PID 21920;
+  before restarting, copied the intact quiet-kernel overlay to ignored
+  `windows-runtime/backups/cpu2-before-metrics-20261031.qcow2`, matching
+  SHA-256 `d511b363ad8d16723a5cb6b47effe50ec23fe33bf589981bcd3369820100d665`.
+  Relaunched exactly one two-core quiet-kernel guest (PID 45248, run
+  `windows-qemu-20261031-132922`) with the new metrics backend and web UI.
+  QMP `/metrics.json` returned HTTP 200 with zero initial errors. Real
+  Playwright browser opened diagnostics, saw 9.89 MiB framebuffer, 36
+  captures (22 changed / 14 unchanged), ~23.56 ms average QMP capture,
+  ~23.63 ms average changed-frame PNG encoding, and 0 errors. Test browser
+  tab was closed afterward to eliminate unnecessary polling.
+- One-off PNG benchmark on a live framebuffer, using only the existing
+  Python standard-library encoder: compression 0 ~28.6 ms/7.4 MiB;
+  level 1 ~22.2 ms/200.5 KiB; current level 2 ~22.5 ms/182.5 KiB;
+  level 3 ~24.4 ms/140.4 KiB; level 6 ~48 ms/102.6 KiB (median of 3
+  iterations). **Retained level 2**, as level 1 gave only ~0.3 ms gain
+  with larger downloads. Benchmark raw guest screenshot was deleted after
+  measurement. QEMU remains software TCG only, no hardware accelerator.
+- **Final acceptance ~13:34 UTC passed** on this exact metrics-enabled
+  two-core guest: iOS reached lock screen, `POST /gesture` HTTP 204 unlocked
+  SpringBoard, a 240 ms touch opened Safari, and Google's real HTTPS consent
+  page rendered after the initially blank WebKit interval. Private screenshot
+  `windows-runtime/network-probe/metrics-safari-google-rendered2.png`.
+  Live `/metrics.json` showed 78 snapshots (33 changed, 45 unchanged),
+  average QMP read 25.67 ms, PNG encode 23.66 ms and 0 capture errors.
+  With the temporary Playwright browser tab closed, the capture count stayed
+  flat for an eight-second idle test; there is no automatic background
+  screenshot polling when nobody is viewing. One QEMU process remains
+  active, all original disks/kernels/backups and unrelated Docker/WSL remain
+  preserved. Kernel console shows no panic; `driverkitd` emitted one SIG9
+  crash report during boot, an outstanding non-WebKit service fault.
+
+- Current native two-core quiet-AKS guest PID 21920 remained alive throughout
+  this development. Its viewer `tools/qemu-viewer.html` is hot-reloaded, so
+  the improved touch-release handling is visible without a QEMU restart.
+- New release handling covers `pointercancel`, `lostpointercapture`, browser
+  blur, `pagehide`, and tab hiding. Ignores pointer moves/releases from a
+  different pointer ID, prevents duplicate releases, and sends release
+  HTTP POSTs using `keepalive` for navigation/blur resilience. Four offline
+  simulated browser scenarios pass in `tests/check_viewer_pointer.js`.
+- Backend adds sanitized host-only QMP capture metrics at `/metrics.json`:
+  samples, changed/unchanged frames, failures, last/mean screenshot and PNG
+  compression milliseconds, and raw framebuffer size. No background metric
+  sampler. UI shows the data on demand in a collapsible performance panel.
+- Existing adaptive-poll JavaScript test passes; Python suite now has **12
+  passing tests**, including the new aggregate metrics/cache test. Node and
+  Python syntax checks pass. Backend metrics require one controlled QEMU
+  restart, after a verified snapshot, to take effect in the live controller.
+
+## Viewer host-I/O optimization, 31 October 2026, ~13:03 UTC
+
+- Follow-up: added an OS-enforced byte-range singleton lock in the Windows
+  native controller (`native_instance_lock`). Held from just before QEMU
+  startup until controller exit; `-Stop` can still signal an active guest.
+  Test spawned a competing Python process: it failed while the lock was
+  held, and succeeded immediately after release. Eleven Python tests plus
+  JavaScript adaptive refresh tests now pass. Source updated on GitHub
+  after verification. **Controlled restart verified:** current native QEMU
+  PID 21920 (`windows-qemu-20261031-130715`), quiet-AKS kernel, two CPUs,
+  sRGB and diagnostics off; no second emulator. Immediately beforehand,
+  backed up its writable overlay at
+  `windows-runtime/backups/cpu2-before-singleton-20261031.qcow2` with SHA-256
+  `14683cbb009b4461375a1dddedd08fc8740f886e55c879da5fac831e1a7abfc8`
+  (verified exact 64-character checksum).
+  Verified `native-qemu-instance.lock` is held by running controller: a live
+  second Python process failed to acquire it, while normal launcher reopen
+  reused the original guest PID. No unrelated WSL or Docker service stopped.
+  **Final post-reboot checks passed:** by 13:10 UTC the guest rendered the
+  real lock screen and `POST /gesture` returned HTTP 204 to show SpringBoard.
+  A 240 ms tap launched Safari; its Google HTTPS page initially remained
+  blank while WebKit started, then fully rendered the secure padlock and
+  Google consent dialog. Screenshot (private ignored local evidence):
+  `windows-runtime/network-probe/atomic-safari-delayed.png`. Live console
+  showed WebKit Networking, WebContent and GPU processes, no WebKit crash and
+  no kernel panic. Leave the one running guest available for user testing.
+
+- Measured runtime state on Windows: one QEMU PID 29212, new verified
+  two-core quiet-AKS kernel, and viewer `/status.json` still responsive.
+  Host free RAM fluctuated below 1 GiB while unrelated WSL was resident;
+  **do not kill WSL or other user Docker containers to recover RAM**.
+- Found the live browser viewer still performed a QMP full framebuffer
+  snapshot about every 800ms even on an unchanged page. Each sample writes
+  ~9.9 MiB before compressing, causing unnecessary repeated host I/O.
+  New JavaScript adaptive scheduling uses 350ms immediately after activity,
+  1s after 6s idle, 2.5s after 20s, 6s after 60s, and NO polling for hidden
+  tabs. The browser immediately resumes when returned to or interacted with;
+  pointer moves no longer continually postpone scheduled frame updates.
+- Extracted viewer HTML from the Python controller into
+  `tools/qemu-viewer.html` and changed `GET /` to re-read that file on each
+  request, allowing future UI fixes by browser reload without rebooting iOS.
+  Added 1 Python HTTP test for live HTML updates (10 tests total) and
+  `tests/check_viewer_poll.js` for simulated-time adaptive polling.
+  Both Node and Python tests passed; JavaScript and Python syntax validated.
+- The original iOS disk and kernel, current quiet-kernel save, QEMU and all
+  unrelated Docker/WSL resources remain preserved. After committing changes,
+  do a controlled QEMU restart to deploy this new controller/viewer, and
+  retest lock screen, Home and HTTPS browsing.
+
+## 31 October 2026 12:04 UTC — optional quiet AKS kernel live verified
+
+- First stopped PID 44780 through verified QMP shutdown; copied the intact
+  current two-core overlay to ignored
+  `windows-runtime/backups/cpu2-pre-quiet-test-20261031.qcow2`, matching
+  SHA-256 `d501379e8ec7d138dcb2691f057c58662d5fc1be807d6172912855403cda78b6`.
+  Left unrelated WSL/Docker processes and the original single-core disk alone.
+- Booted CI kernel `7dc86497...` on the separate
+  `ios-cpu2-aks-quiet-candidate.qcow2` overlay, two QEMU CPUs, sRGB,
+  diagnostics disabled. Boot payload explicitly contained `sweet_aks_quiet=1`,
+  `sweetiolog=-` and the QEMU network + multicore switches. PID 53488
+  reached lock screen, `POST /gesture` unlocked it, MobileSafari opened
+  and rendered Google's HTTPS consent dialog. The matching kernel console
+  showed **0 AKS selector-debug traces**. Screenshots remain under ignored
+  `windows-runtime/network-probe/quiet-aks-*.png`. The validated candidate
+  overlay was then gracefully stopped and backed up with SHA-256
+  `efaefa38f23fa4ad2dded56dbae2b942f6df4b70d5c96ef547868e282c273884`.
+- Saved the old verified kernel unchanged; copied the new build to ignored
+  `windows-runtime/guest/kernel.aks-quiet.sweet` and recorded its exact SHA
+  in `windows-runtime/state/native-kernel-sha256.txt`. Native Windows launcher
+  now selects it locally with verification; `-LegacyKernel` bypasses it.
+  The original and Docker kernel pins are unchanged. Also hardened shortcut
+  reuse: mismatched `-LegacyKernel`, `-SingleCore` and `-Diagnostics` are
+  rejected even without `-SrgbDisplay`, verified three negative tests.
+- Launched local shortcut using the newer preserved two-core overlay,
+  quiet kernel PID 29212, run `windows-qemu-20261031-120409`. Runtime state
+  records `kernel_sha256=7dc86497...`, `cpus=2`, `diagnostics=false`.
+  The new read-only `tools/Test-IosSweet-Windows.ps1` passed: one verified
+  native QEMU, matching installed kernel checksum, viewer JSON, valid PNG
+  framebuffer. **Final full check now passed** on this exact session:
+  guest reached the lock screen, batched `POST /gesture` unlocked SpringBoard,
+  a 240 ms QMP click launched Safari, and Google rendered the real cookie
+  dialog over HTTPS with a padlock. Private screenshot:
+  `windows-runtime/network-probe/promoted-safari-google-final.png`.
+  The prior single-core and two-core QCOW2 saves, original kernel, and
+  unrelated Docker workload remain untouched. GUI remains available on 8108.
+
+## Follow-up 31 October 2026, 10:14 UTC — verified launcher / new kernel candidate
+
+- The actual `Start-IosSweet-Windows.ps1 -SrgbDisplay -NoBrowser` desktop
+  launcher successfully restarted the locally preferred two-core guest,
+  opening **one** native QEMU PID 44780, run
+  `windows-runtime/state/windows-qemu-20261031-101223`. Live
+  `/status.json` returned `{mode:"Native Windows QEMU",cores:2,diagnostics:false}`.
+  Live viewer source confirms 240 ms click, cached screen and boot-unique
+  ETag. Private two-core overlay was backed up beforehand to ignored
+  `windows-runtime/backups/cpu2-before-final-launch-20261031.qcow2`, SHA-256
+  `7b1d115609ce37c7f458e34669de69e23094cefffa664cd048e6dc11c9fe100a`.
+  Original single-core iOS disk remains intact. **Final launcher reboot now
+  verified end-to-end:** QEMU reached the lock screen, `POST /gesture`
+  unlocked to SpringBoard (HTTP 204), a 240 ms touch launched Safari,
+  and `google.com` rendered its real HTTPS page, secure padlock and cookie
+  consent dialog. Private evidence:
+  `windows-runtime/network-probe/launcher-final-google-status.png`.
+- Github XNU workflow run `41191163506` **succeeded** after applying new
+  patch 0098. Downloaded independently to ignored
+  `windows-runtime/experiments/xnu-run-41191163506/kernel.development.sweet`,
+  verified SHA-256
+  `7dc86497ccd0c224ec1e6b8430be6f2dd7a46ac13ef795ed4047d0adf7d3bde8`
+  against artifact `SHA256SUMS`. Separate candidate QCOW2 cloned from the
+  known-offline two-core backup at
+  `windows-runtime/state/ios-cpu2-aks-quiet-candidate.qcow2`; same backing raw
+  disk, same verified clone checksum. `--prepare-only` accepted the new kernel
+  with explicit checksum, built loader/ADT/boot payload with **two CPUs** and
+  changed no running VM. **Live candidate boot not yet verified** at this step;
+  do not swap the current stable GUI kernel without separate runtime tests.
+- Removed only two disposable `--prepare-only` run folders generated in this
+  session (`windows-qemu-20261031-100401` and `...-101404`), reclaiming
+  105.3 MiB. Kept the active run, all backups, candidate kernel and cloned
+  iOS disk, and unrelated Docker workloads untouched.
+- Final regression suite now has nine passing tests, including stop guards,
+  missing prerequisites and stale-frame prevention. All work committed on
+  `windows-qemu-virtio` through `c077d6f` so far.
+
+## Two-core continuation after quiet reboot (31 October 2026, 10:00 UTC)
+
+- QMP shutdown safety improvement: `verify_own_qemu_pid` checks the saved PID
+  is **actually this project's QEMU executable** via Windows process image
+  lookup before `--stop` can signal it. Verified against active VM PID 47692
+  (read-only check); passed negative tests for Python PID and invalid PIDs.
+  Nine offline tests pass. No guest was stopped for this validation.
+
+- Follow-up ~10:08 UTC: **quiet two-core Safari Google HTTPS now verified**
+  as well as example.com HTTP (ignored screenshot
+  `windows-runtime/network-probe/quiet2-favorite240.png`). Adjusted the
+  frontend's minimum tap from 375ms to **240ms**: 375ms triggered an iOS
+  favorite-preview context menu while a 240ms touch successfully navigated
+  Google and opened Safari from the home screen. The batched home gesture
+  remains separate from ordinary taps.
+- Viewer now uses boot-unique ETags and a sanitized `/status.json`, preventing
+  stale screenshots across VM restarts and showing the current 1/2-core mode
+  in the UI. Native `--check` now returns failure for missing executables,
+  kernel or valid 16 GiB disk rather than printing false and exiting success.
+  Eight offline regression tests pass, including a VM-reset ETag test and
+  the negative prerequisite test. The live two-core session is still the
+  **single** running QEMU, with untouched single-core backup.
+
+- Gracefully stopped the first two-core diagnostics guest. Copied its tested
+  overlay to `windows-runtime/backups/cpu2-after-browser-20261031.qcow2`,
+  SHA-256 `4635071c4fed373427e5c60ad787b5239c29c1d64035114edc73508a29231f15`.
+  The original verified one-core `state/ios.qcow2` was not touched.
+- Started quiet (no sampler, no PCAP, no verbose trace) two-core guest with
+  same experiment overlay in `windows-qemu-20261031-095611`, PID 47692,
+  port 8108. It booted to lock screen, unlocked with new `/gesture` HTTP 204,
+  reached SpringBoard and rendered example.com HTML over HTTP in Safari.
+  Evidence is ignored under `windows-runtime/network-probe/`. This verifies
+  a subsequent boot but **does not yet establish long-term stability or speedup**.
+- Added local ignored `windows-runtime/state/native-cpus.txt` with value `2`;
+  the Windows desktop shortcut picks the tested two-core overlay next time
+  (same single-instance rule) instead of the preserved one-core disk. The
+  PowerShell launcher has `-SingleCore` for rollback after a clean stop.
+  Reopening the current guest with the local preference did not spawn a
+  duplicate (still QEMU PID 47692). Portable/fresh installs default one core.
+- New patch 0098 suppresses high-volume AppleKeyStore **logging only** with
+  `sweet_aks_quiet=1`. Normal QEMU boots additionally set `sweetiolog=-` to
+  disable up to 400 IOKit backboardd match-serialization logs; diagnostics
+  retains the original output. Patch 0098 applied cleanly to the original
+  SWEET AKS source reconstructed exactly from patch 0038. No kernel has
+  been replaced. Next: macOS CI compilation and optional offline test.
+
+## Windows viewer improvements and two-core experiment (2026-10-31 09:48 UTC)
+
+- The live `windows-qemu-virtio` single-core guest was preserved and gracefully
+  stopped with QMP after verified Google and example.com Safari browsing.
+  Its writable `windows-runtime/state/ios.qcow2` was backed up to the ignored
+  `windows-runtime/backups/ios-before-cpu2-20261031.qcow2`. A separate test
+  overlay `windows-runtime/state/ios-cpu2-experiment.qcow2` was cloned from
+  the backup. **All three SHA-256 hashes matched:**
+  `e7e3b24a51a906821154185d7da626695315d1c8b8a4dbf60057d3cfa325e8d3`.
+  The backing raw Apple disk is read-only and unchanged.
+- First experimental two-CPU native Windows QEMU boot is `windows-runtime/state/windows-qemu-20261031-094744`;
+  guest PID 68536, port 8108, sRGB display, diagnostics enabled. Real console
+  confirmed `SWEET CPU: 2/2 CPUs initialized, SGI1 verified` and launched
+  SpringBoard/backboardd. At this milestone the framebuffer showed the Apple
+  logo; **full UI usability and networking not yet demonstrated for two CPUs**.
+  Never run this concurrently with the known-good single-core guest.
+- Viewer: 350/800/2500ms adaptive refresh, no redundant PNG encoding for
+  unchanged frames, ETags/304, thread-safe snapshot sharing across clients;
+  compression-2 encoding measured ~26ms vs 51ms at compression-6. One
+  batched QMP Home gesture (30 events over one socket) returned the live
+  single-core guest to SpringBoard in 1.59 seconds. The live browser viewer
+  passed its new HTML/ETag smoke check in the experimental two-core session.
+- Update: 2-CPU Windows guest reached real lock screen, then a `POST /gesture`
+  HTTP 204 returned to the fully rendered SpringBoard home screen. A 900ms
+  tap on Safari invoked iOS's long-press context menu; dismissing it and
+  tapping Safari for 350ms opened MobileSafari and launched WebKit Networking,
+  WebContent and GPU processes. Fixed web viewer minimum click to 375ms;
+  **later confirmed Google page rendering with HTTPS padlock and consent
+  dialog** (`windows-runtime/network-probe/cpu2-google-later.png`). It also
+  loaded `example.com` in Safari over **plain HTTP** with multilingual text
+  and "Not Secure" indicator (`cpu2-example-visit.png`). Two-core Safari
+  and networking pass; long-term stability and actual speedup remain open.
+- Normal Windows boots now omit kernel sampler, verbose network tracing, and
+  packet capture, with `--diagnostics` opt-in. Experimental `--cpus 2` requires
+  a non-default guest overlay to protect known-good saved state.
+- Six offline viewer tests passed; Python compile, Git whitespace and Node
+  script syntax checks passed. Diagnostic kernel CI `41143670554` succeeded;
+  verified output SHA-256
+  `162e3e007b56d96414bc477894c180afa56a5bcfc9b63e4b4236bcac79efb468`
+  is staged under ignored `windows-runtime/experiments/xnu-run-41143670554`.
+  **Current verified GUI kernel remains unchanged**, not automatically swapped.
+- Next: verify full two-core SpringBoard unlock, Safari HTTPS, repeated taps
+  and stability, compare speed against single core, revert if any regression.
+  Then evaluate safe startup defaults. Keep the source overlay and all backups.
+
+## Latest Windows Safari and network result (30 October 2026, 23:21 UTC)
+
+- **Verified external HTTPS success:** active *single* Windows QEMU guest at
+  `http://127.0.0.1:8108/` (QEMU PID 71564, native run
+  `windows-runtime/state/windows-qemu-20261030-180638`, `srgb_display=true`).
+  Safari rendered Google's real HTTPS page, its consent dialog and padlock;
+  browser history forward navigation re-rendered it. Evidence screenshot is
+  private `windows-runtime/network-probe/google-forward.png`.
+- **Second independent HTTPS verified 23:25 UTC:** Safari loaded and rendered
+  `https://example.com`, including multilingual page content and the secure
+  padlock (`windows-runtime/network-probe/example-com-rendered.png`). A TCP
+  flow transferred 1,118 outgoing and 5,844 incoming payload bytes.
+- **Verified local WebKit HTTP:** Safari loaded `http://10.0.2.2:8765/`;
+  local HTTP server recorded HTML 200/304 and displayed green CSS background
+  and text after noticeable delay. A richer fixture fetched an image and JS
+  canary with HTTP 200. The final richer fixture was not visually confirmed
+  to repaint before leaving. Saved captures and fixture are ignored local
+  files under `windows-runtime/network-probe/`.
+- **TLS interpretation corrected:** single `www.google.com` TLS attempt with
+  517 outgoing and ~2.8 KB incoming bytes ended early, but another connection
+  moved 4,960 outgoing/10,043 incoming bytes and loaded the page. Inspect all
+  connections and actual screenshots; do not infer TLS failure from only the
+  first flow. Browser success does not establish speed or cold-boot stability.
+- Updated the synthetic QEMU-only sRGB launcher to reuse a matching running
+  instance and prevent duplicate QEMUs. Current `Start-iOS-Sweet-Windows.cmd`
+  defaults to the verified sRGB display mode. This configuration was not
+  A/B-tested against P3; causation is not established.
+  Created Windows desktop shortcut `iOS Sweet (Windows).lnk` and removed the
+  obsolete **project-only** Docker shortcut. The one-instance launcher
+  smoke test re-opened existing QEMU PID 71564 unchanged. Longer (~850 ms)
+  emulated taps proved more reliable than 300 ms while WebKit was busy.
+- Found old kernel network tracing was saturated by `mDNSResponder` events.
+  Independent browser/DNS/service budgets committed as `ebc43ae`, pushed to
+  fork branch `windows-qemu-virtio`. Triggered GitHub Actions XNU run
+  `41143670554` for next diagnostic; **do not swap the current working
+  kernel/disk automatically**. `tools/diagnose-webkit-flows.py` reports
+  sanitized TCP flow summaries. No Docker or iOS Apple system image touched.
+- Next: verify reliable Google reload and sustained cross-site browsing;
+  check real cold-boot repeatability only when a clean guest stop/restart is
+  safe. Investigate severe iOS TCG latency and stale framebuffer repaints.
+  Preserve prior tests, protected source images, local captures and backups.
+
 ## Windows QEMU network continuation (2026-10-29 late evening)
 
 - Windows checkout C:\Users\danho\Desktop\ios-sweet, branch windows-qemu-virtio. Verified 0091 kernel (GitHub Actions 40973551949, SHA256 2730146e142ffea88e904f53f7bb3692eb63156ddf3c3799ba46a10eb9524456) is at xnu/out-qemu-0091/kernel.development.sweet.

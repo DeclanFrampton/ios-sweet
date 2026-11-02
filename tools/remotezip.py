@@ -15,7 +15,8 @@ import os, struct, subprocess, sys, zlib
 # Apple's CDN, curl falls back to IPv4.
 def curl(*args):
     return subprocess.run(['curl', '-sfL', '--max-time', '300', *args],
-                          check=True, capture_output=True).stdout
+                          check=True, capture_output=True,
+                          creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)).stdout
 
 
 def get(url, start, end):
