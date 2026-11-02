@@ -85,6 +85,27 @@ The selected location is remembered in the clone's ignored
 Selecting a folder does **not** silently migrate or overwrite a device
 elsewhere. Keep your chosen data directory when updating or moving source.
 
+### A fresh clone says the iPhone is already running
+
+An existing emulator can outlive its Studio window. A new clone starts with
+its own empty `.studio/data`, which does not mean the earlier iPhone stopped.
+Studio now detects this and displays **iPhone running elsewhere** with a
+**Connect to running iPhone** button. Use that button instead of downloading
+or creating another device.
+
+Reconnection verifies the live process/executable, exact writable overlay,
+kernel checksum, local endpoints and authenticated guest instance. It saves
+a reference to the existing device in the new workspace; **the iPhone is not
+rebooted, cloned, deleted or reinstalled**. Existing apps remain on the same
+disk. Any previous device selection in this workspace is backed up before
+switching. Keep the original device folder: reconnecting does not move it.
+
+If an emulator cannot be verified, Studio leaves it alone and disables new
+device creation. Return to the original Studio window rather than killing
+QEMU or deleting `.studio`. If no device exists at all, **Set up iPhone** opens
+the normal first-run setup. Reopening a connected Studio loads the existing
+app library without starting a second emulator.
+
 ## Diagnostics without launching a window
 
 ```powershell

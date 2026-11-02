@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 import uuid
 
 import bundles
+import device_connection
 
 FROZEN = getattr(sys,'frozen',False)
 RESOURCE = Path(sys._MEIPASS)/'payload' if FROZEN else Path(__file__).resolve().parent.parent
@@ -60,6 +61,7 @@ class Studio:
         self.bridge=load_module('studio_bridge',TOOLS/'guest-install/client.py')
         self.lock=threading.Lock();self.job=None;self.events=deque(maxlen=150)
         self.selected=None;self.base=None;self.window=None;self.cached_guest=None
+        self._discovered=None;self._discovered_at=0
         self.log('iOS Sweet Studio ready. Files and signing stay on this computer.')
 
     def log(self,text):
@@ -74,8 +76,8 @@ class Studio:
         if not self.config:raise RuntimeError('Create or import an iOS device first.')
         return self.config
 
-    def active(self):
-        c=self.config
+    def active(self, config=None):
+        c=self.config if config is None else config
         if not c:return None
         p=Path(c['state'])/'active-native.json'
         if not p.exists():return None
@@ -96,21 +98,54 @@ class Studio:
         run=Path(r['run']).resolve()
         if not run.is_relative_to(Path(c['state']).resolve()):raise RuntimeError('Active run escaped its state directory.')
         arguments=json.loads((run/'command.json').read_text())
-        expected='file='+str(Path(c['overlay']).resolve()).replace('\\','/')
-        if not any(a.startswith('if=none,id=iosroot,') and expected in a for a in arguments):
+        if device_connection.overlay_path(arguments)!=Path(c['overlay']).resolve():
             raise RuntimeError('The running guest uses a different disk; it was left untouched.')
         return r
+
+    def discovery(self, force=False):
+        if force or self._discovered is None or time.monotonic()-self._discovered_at>8:
+            self._discovered=device_connection.discover();self._discovered_at=time.monotonic()
+        return self._discovered
+
+    def connect_running(self):
+        found=self.discovery(force=True)
+        if not found['canConnect'] or not found['candidate']:
+            raise RuntimeError(found['message'] or 'No verified running Studio iPhone was found.')
+        candidate=found['candidate'];config=candidate['config']
+        if bundles.sha256(Path(config['kernel']))!=config['kernelSha256']:
+            raise RuntimeError('Existing device kernel checksum differs; no settings were changed.')
+        self.progress('Verifying the running iPhone and its private app bridge...')
+        guest=self.guest('status',timeout=15,config=config)
+        if guest.get('version',0)<7 or not guest.get('multiAppInstall') or guest.get('vmInstanceId')!=config['instanceId']:
+            raise RuntimeError('The running iPhone did not authenticate as the expected Studio device.')
+        if self.config_path.exists():
+            backup=self.config_path.with_name('device.before-connect-'+uuid.uuid4().hex+'.json')
+            shutil.copy2(self.config_path,backup)
+        previous=self.config
+        try:
+            self.config=dict(config);self.save()
+        except Exception:
+            self.config=previous;raise
+        self.cached_guest=guest;self._discovered=None
+        self.progress('Connected to your existing iPhone. Its disk, installed apps and running process are unchanged.')
+        return self.refresh()
 
     def status(self):
         try:r=self.active();error=None
         except Exception as e:r=None;error=str(e)
+        external=self.discovery() if not r else None
+        connection={'runningElsewhere':bool(external and external['running']),
+            'canConnect':bool(external and external['canConnect']),
+            'message':external['message'] if external else '',
+            'deviceLocation':str(Path(self.config['overlay']).parent) if self.config else None}
         return {'product':'iOS Sweet Studio','version':'0.2.0-preview','configured':bool(self.config),
-            'vmRunning':bool(r),'guest':self.cached_guest,'job':self.job,'events':list(self.events),
+            'vmRunning':bool(r),'guest':self.cached_guest if r else None,'job':self.job,'events':list(self.events),
+            'connection':connection,
             'selected':self.selected['info'] if self.selected else None,'error':error,
             'dataDirectory':str(self.home),'platform':'Windows x64 / iOS 16.7.16'}
 
     def submit(self, action, **kwargs):
-        allowed={'start','shutdown','install','refresh','launch','stop_app','create_device','prepare_apple','import_device','export_device'}
+        allowed={'start','shutdown','install','refresh','launch','stop_app','create_device','prepare_apple','import_device','export_device','connect_running'}
         if action not in allowed:raise ValueError('Unknown action')
         if not self.lock.acquire(blocking=False):raise RuntimeError('Another operation is already running.')
         self.job={'id':uuid.uuid4().hex,'action':action,'state':'running','message':'Starting'}
@@ -128,8 +163,9 @@ class Studio:
         if self.job:self.job['message']=str(text)
         self.log(text)
 
-    def guest(self,action,bid=None,packet=None,timeout=30):
-        c=self.runtime();self.active() or (_ for _ in ()).throw(RuntimeError('Start the iPhone first.'))
+    def guest(self,action,bid=None,packet=None,timeout=30,config=None):
+        c=config if config is not None else self.runtime()
+        self.active(config=c) or (_ for _ in ()).throw(RuntimeError('Start the iPhone first.'))
         cfg=json.loads(Path(c['bridgeConfig']).read_text())
         token=cfg.get('Token','')
         if not __import__('re').fullmatch('[0-9a-f]{64}',token):raise ValueError('Invalid private guest capability.')
@@ -265,15 +301,25 @@ class Studio:
         raise ValueError('Unknown file selection')
 
     def create_device(self):
+        self.ensure_setup_idle()
         if not self.base:raise ValueError('Select your prepared iOS 16.7.16 root image first.')
         import runtime_setup
         self.config=runtime_setup.from_prepared_root(Path(self.base),self.home,RESOURCE,self.progress)
         self.save();self.progress('Device created. Press Start iPhone.');return {'configured':True}
 
     def prepare_apple(self):
+        self.ensure_setup_idle()
         import runtime_setup
         self.config=runtime_setup.from_apple(self.home,RESOURCE,self.progress)
         self.save();self.progress('Device created from Apple firmware.');return self.start()
+
+    def ensure_setup_idle(self):
+        if self.active():
+            raise RuntimeError('This iPhone is already running. Use the viewer or Stop it before creating another device.')
+        found=self.discovery(force=True)
+        if found['running']:
+            raise RuntimeError('Your existing iPhone is running. Choose Connect to running iPhone instead of creating a new device.'
+                if found['canConnect'] else found['message'])
 
     def import_device(self):
         raise ValueError('Choose a prepared .raw image in Setup, then select Create device.')
@@ -328,7 +374,7 @@ class Handler(BaseHTTPRequestHandler):
             elif action in ('launch','stop_app'):
                 if set(data)!={'bundleId'}:raise ValueError('Expected a bundle ID')
                 result=self.studio.submit(action,bundleId=bundles.bundle_id(data['bundleId']))
-            elif action in ('start','shutdown','install','refresh','create_device','prepare_apple'):
+            elif action in ('start','shutdown','install','refresh','create_device','prepare_apple','connect_running'):
                 if data:raise ValueError('This operation accepts no arguments')
                 result=self.studio.submit(action)
             else:self.send(404,{'error':'Unknown operation'});return

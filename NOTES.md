@@ -1,5 +1,27 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 2 November 2026 - reconnect a fresh clone to the existing Studio iPhone
+
+- User screenshot showed `Device stopped` and `Stop the existing iPhone before
+  creating a device`. Confirmed the fresh acceptance clone's unconfigured GUI
+  (PID 9412) was using its empty `.studio/data`, while the original Studio
+  guest was still running as QEMU PID 53180 from `windows-runtime/studio`.
+  This is a data-directory mismatch, not a failed iOS boot or memory shortage.
+- Added bounded process-based discovery and explicit `Connect to running
+  iPhone`: recheck the actual QEMU executable, exact overlay, saved/live
+  command, active PID, ports, kernel hash and authenticated guest instance.
+  No drive scans, emulator termination, disk copy or guest modification.
+  Connecting saves a device reference in the new workspace and backs up an
+  existing selection before replacing it. Keep the original data folder.
+- UI now distinguishes running-elsewhere, unknown external QEMU, stopped and
+  connected states. A fresh clone offers reconnect instead of an impossible
+  setup, and `Set up iPhone` is usable when no device exists. New device
+  preparation is rejected before firmware download if another VM is active.
+- Twelve new Python regressions and the Studio connection JavaScript checks
+  passed, including stale PID, mismatched overlay, wrong guest identity,
+  backup-before-switch, no credential leakage and no duplicate/reboot paths.
+  Full suite and real GUI reconnect acceptance are the next verification.
+
 ## 2 November 2026 - clone-and-run source launcher, no app installer
 
 - User explicitly replaced the installer requirement with: clone the repo,

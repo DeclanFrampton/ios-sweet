@@ -27,6 +27,11 @@ missing), then opens the **Studio code from your clone**. It does not use a
 Studio setup EXE, change your system Python/PATH, or register an installed app.
 Run the same command next time: verified downloads are reused.
 
+Already have an iPhone running from another clone or data folder? Use
+**Connect to running iPhone** when Studio offers it. The existing device and
+installed apps are reused without a restart or another firmware download;
+see [reconnecting an existing device](docs/RUN_FROM_SOURCE.md#a-fresh-clone-says-the-iphone-is-already-running).
+
 On first use, confirm the in-app firmware authorisation and select
 **Download & create iPhone**. Apple firmware is downloaded directly from
 Apple, not bundled in GitHub. Then choose an IPA and click **Install & launch**.

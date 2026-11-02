@@ -11,17 +11,64 @@ main{display:grid;grid-template-columns:245px minmax(390px,1fr) 330px;min-height
 dialog{width:620px;border:1px solid #3f5069;background:#101b30;color:#e8ecf6;border-radius:18px;padding:28px;box-shadow:0 35px 100px #0009}dialog::backdrop{background:#040915cf}dialog h2{margin:0 0 10px;font-size:24px}.setup-option{padding:18px;border:1px solid var(--border);border-radius:12px;margin-top:16px}.setup-option h3{margin:0 0 6px;font-size:15px}.setup-option p{font-size:12px;color:var(--muted);margin:6px 0 14px}.check{font-size:12px;display:flex;gap:8px;align-items:flex-start;margin-bottom:12px}.check input{accent-color:var(--accent);margin-top:4px}.row{display:flex;gap:9px;align-items:center}.setup-close{float:right}.setup-note{margin-top:15px;font-size:11px;color:var(--muted)}[hidden]{display:none!important}
 </style></head><body>
 <header><div class="brand"><div class="logo">s</div><div><h1>iOS Sweet <span style="font-weight:350">Studio</span></h1><div class="eyebrow">Your local iPhone workspace</div></div></div><div class="status"><span class="pill">Windows native</span><span class="dot" id="dot"></span><span id="vm-state">Device stopped</span><button id="start" class="primary">Start iPhone</button><button id="shutdown" class="secondary danger">Stop</button></div></header>
+<section id="connection-banner" hidden style="margin:16px 24px;padding:16px 20px;border:1px solid #3c6f61;border-radius:12px;background:#142932;display:flex;align-items:center;justify-content:space-between;gap:20px"><div><strong>Your existing iPhone is still running</strong><p id="connection-message" style="margin:4px 0;color:#b9c8df;font-size:13px"></p></div><button id="connect-running" class="primary">Connect to running iPhone</button></section>
 <main><aside><div class="sidebar-title"><h2 class="section-title">App library</h2><button class="link" id="refresh">Refresh</button></div><div id="apps"><div class="empty">Start your iPhone to load installed apps.<br><br>Choose an IPA to add your first app.</div></div><div class="sidebar-bottom"><button id="setup" class="secondary">Device setup</button><button id="logs" class="secondary">Open logs</button><div class="fine">iOS 16.7.16 &middot; ARM64<br>Local development guest<br>No Apple account required</div></div></aside>
 <section class="device-area"><div class="device-heading"><h2>iPhone</h2><span class="pill" id="display-status">Offline</span></div><div class="phone"><img id="screen" class="screen" alt="Live emulated iPhone display" draggable="false"><div class="placeholder" id="placeholder"><div><strong>Your iPhone, right here.</strong><p>Create a device, start it, then install and launch an IPA.</p></div></div></div><div class="device-controls"><button data-gesture="home">Home / unlock</button><button data-gesture="swipe-up">Swipe up</button><button data-gesture="swipe-down">Swipe down</button><button data-gesture="swipe-left">Left</button><button data-gesture="swipe-right">Right</button></div><div class="device-foot">Click and drag on the screen to interact.<br>Software emulation &middot; first boot and heavy apps can be slow.</div></section>
 <section class="inspector"><h2>Install an app.</h2><p class="intro">Choose an IPA. Studio prepares, signs and installs a private copy, then opens it on your iPhone.</p><div class="import-card"><div class="import-icon">+</div><strong>Bring your own IPA</strong><p>Your original file stays unchanged.</p><button id="select" class="secondary wide">Choose IPA file</button></div><div id="selection" class="selection" hidden><h3 id="selected-name"></h3><div class="kv"><span>Bundle ID</span><strong id="selected-id"></strong></div><div class="kv"><span>Version</span><strong id="selected-version"></strong></div><div class="kv"><span>Minimum iOS</span><strong id="selected-os"></strong></div><div class="kv"><span>Expanded size</span><strong id="selected-size"></strong></div><p id="warnings" class="warnings"></p></div><button id="install" class="primary wide" style="margin-top:15px" disabled>Install &amp; launch</button><p class="notice">For unencrypted ARM64 iOS-device apps compatible with iOS 16.7.16. Compatibility is not guaranteed. App Store DRM is not removed.</p><div id="error" class="error" role="alert" hidden></div><div class="activity"><div class="activity-head"><h2 class="section-title">Activity</h2><span class="pill">On this computer</span></div><div class="job" id="job" hidden><div class="job-state" id="job-state"></div><div class="job-message" id="job-message"></div><div class="busy-line" id="busy-line"><span></span></div></div><div id="log" class="log" aria-live="polite"></div></div></section></main>
 <dialog id="onboarding"><button class="setup-close secondary" id="close-setup">Close</button><div class="eyebrow">First-run setup</div><h2>Create your iPhone.</h2><p class="muted">Studio keeps a private iOS device on your computer. Apple firmware is never included in the public installer.</p><div class="setup-option"><h3>Download &amp; prepare from Apple</h3><p>Downloads the pinned iPhone X firmware directly from Apple's servers and builds your local device. Allow at least 35 GB of free storage and 6 GB of available memory. No Docker, WSL or Apple developer keys are required.</p><label class="check"><input type="checkbox" id="consent"><span>I am authorised to use this Apple firmware for local testing. Download it directly to this computer.</span></label><button id="prepare-apple" class="primary" disabled>Download &amp; create iPhone</button></div><div class="setup-option"><h3>Already have a prepared iOS root image?</h3><p>Import a 16 GiB iOS Sweet HFSX root (.raw / .img). Studio uses a private copy and installs its app-management agent.</p><div class="row"><button id="select-root">Choose root image</button><button id="create-device" class="primary" disabled>Create device</button></div><div id="root-name" class="fine" style="margin-top:8px"></div></div><p class="setup-note" id="data-path"></p></dialog>
 <script nonce="STUDIO_NONCE">
-'use strict';const token='STUDIO_NONCE';const $=id=>document.getElementById(id);let state={},lastJob='',lastLog='',frameURL='',pointer=null,inputQueue=Promise.resolve(),lastMove=0;
+'use strict';const token='STUDIO_NONCE';const $=id=>document.getElementById(id);let state={},lastJob='',lastLog='',frameURL='',pointer=null,inputQueue=Promise.resolve(),lastMove=0,autoRefreshed=false;
 async function api(action,data={},binary=false){const r=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Studio-Token':token},body:JSON.stringify(data)});if(binary&&r.ok)return r.blob();const result=await r.json();if(!r.ok||result.error)throw Error(result.error||'Request failed');return result;}
 function error(e){$('error').textContent=e.message||String(e);$('error').hidden=false;}
 async function run(action,data={}){$('error').hidden=true;try{const r=await api(action,data);if(action==='select'&&!r.cancelled)await poll();return r;}catch(e){error(e);}}
 function renderApps(apps){const list=$('apps');list.replaceChildren();if(!apps.length){const x=document.createElement('div');x.className='empty';x.textContent='No managed apps installed. Choose an IPA to add one.';list.append(x);return;}for(const a of apps){const card=document.createElement('div');card.className='app-card';const name=document.createElement('p');name.className='app-name';name.textContent=a.name||a.bundleId;const id=document.createElement('div');id.className='app-id';id.textContent=a.bundleId;const controls=document.createElement('div');controls.className='app-actions';for(const [label,action] of [['Open','launch'],['Stop','stop_app']]){const b=document.createElement('button');b.textContent=label;b.dataset.task='1';b.disabled=!!(state.job&&state.job.state==='running');b.addEventListener('click',()=>run(action,{bundleId:a.bundleId}));controls.append(b);}card.append(name,id,controls);list.append(card);}}
-async function poll(){try{state=await api('status');const busy=state.job&&state.job.state==='running';$('dot').classList.toggle('on',state.vmRunning);$('vm-state').textContent=state.vmRunning?(state.guest?'iPhone online':'iPhone booting'):'Device stopped';$('display-status').textContent=state.vmRunning?'Live display':'Offline';$('start').disabled=busy||!state.configured;$('shutdown').disabled=busy||!state.vmRunning;$('refresh').disabled=busy||!state.vmRunning;$('select').disabled=busy;$('install').disabled=busy||!state.vmRunning||!state.selected;document.querySelectorAll('[data-task]').forEach(x=>x.disabled=busy);$('data-path').textContent='Private data: '+state.dataDirectory;if(state.selected){$('selection').hidden=false;const s=state.selected;$('selected-name').textContent=s.name;$('selected-id').textContent=s.bundleId;$('selected-version').textContent=s.version;$('selected-os').textContent=s.minimumOS;$('selected-size').textContent=(s.expandedBytes/1048576).toFixed(1)+' MB';$('warnings').textContent=(s.warnings||[]).join(' ');}if(state.job){$('job').hidden=false;$('job-state').textContent=state.job.state;$('job-message').textContent=state.job.message;$('busy-line').hidden=!busy;const key=state.job.id+state.job.state;if(key!==lastJob){lastJob=key;if(state.job.state==='failed')error(state.job.message);if(state.job.state==='succeeded'){const r=state.job.result||{};if(r.applications)renderApps(r.applications);if(r.apps)renderApps(r.apps.applications||[]);if(['install','launch','stop_app'].includes(state.job.action))setTimeout(()=>run('refresh'),1000);}}}const logs=state.events.map(x=>x.time+'  '+x.text).join('\n');if(logs!==lastLog){$('log').textContent=logs;$('log').scrollTop=$('log').scrollHeight;lastLog=logs;}if(!state.configured&&!$('onboarding').open&&!sessionStorage.getItem('setupDismissed'))$('onboarding').showModal();}catch(e){error(e);}}
+function applyConnectionState(busy){
+  const connection=state.connection||{},external=!!connection.runningElsewhere;
+  $('connection-banner').hidden=!external;
+  $('connection-message').textContent=connection.message||'';
+  $('connect-running').hidden=!connection.canConnect;
+  $('connect-running').disabled=busy;
+  $('dot').classList.toggle('on',state.vmRunning);
+  $('vm-state').textContent=state.vmRunning?(state.guest?'iPhone online':'Connecting to iPhone'):external?'iPhone running elsewhere':'Device stopped';
+  $('display-status').textContent=state.vmRunning?'Live display':external?'Not connected':'Offline';
+  $('start').textContent=state.vmRunning?'Reconnect':external&&connection.canConnect?'Connect to iPhone':state.configured?'Start iPhone':'Set up iPhone';
+  $('start').disabled=busy||(!state.vmRunning&&external&&!connection.canConnect);
+  $('shutdown').disabled=busy||!state.vmRunning;
+  $('refresh').disabled=busy||!state.vmRunning;
+  $('prepare-apple').disabled=busy||external||state.vmRunning||!$('consent').checked;
+  $('create-device').disabled=busy||external||state.vmRunning||!$('root-name').textContent;
+  $('select-root').disabled=busy||external||state.vmRunning;
+  document.querySelectorAll('[data-gesture]').forEach(button=>button.disabled=!state.vmRunning);
+  if(external&&$('onboarding').open)$('onboarding').close();
+  if(!state.configured&&!external&&!busy&&!$('onboarding').open&&!sessionStorage.getItem('setupDismissed'))$('onboarding').showModal();
+}
+async function poll(){
+ try{
+  state=await api('status');const busy=!!(state.job&&state.job.state==='running');
+  applyConnectionState(busy);
+  $('select').disabled=busy;$('install').disabled=busy||!state.vmRunning||!state.selected;
+  document.querySelectorAll('[data-task]').forEach(x=>x.disabled=busy);
+  $('data-path').textContent='Studio workspace: '+state.dataDirectory+(state.connection?.deviceLocation?' | Active iPhone: '+state.connection.deviceLocation:'');
+  if(state.selected){$('selection').hidden=false;const s=state.selected;$('selected-name').textContent=s.name;$('selected-id').textContent=s.bundleId;$('selected-version').textContent=s.version;$('selected-os').textContent=s.minimumOS;$('selected-size').textContent=(s.expandedBytes/1048576).toFixed(1)+' MB';$('warnings').textContent=(s.warnings||[]).join(' ');}
+  if(state.job){
+   $('job').hidden=false;$('job-state').textContent=state.job.state;$('job-message').textContent=state.job.message;$('busy-line').hidden=!busy;
+   const key=state.job.id+state.job.state;
+   if(key!==lastJob){lastJob=key;if(state.job.state==='failed')error(state.job.message);
+    if(state.job.state==='succeeded'){
+     $('error').hidden=true;const r=state.job.result||{};
+     if(r.applications)renderApps(r.applications);if(r.apps)renderApps(r.apps.applications||[]);
+     if(['install','launch','stop_app'].includes(state.job.action))setTimeout(()=>run('refresh'),1000);
+    }
+   }
+  }
+  const logs=state.events.map(x=>x.time+'  '+x.text).join('\n');
+  if(logs!==lastLog){$('log').textContent=logs;$('log').scrollTop=$('log').scrollHeight;lastLog=logs;}
+  // Reopening Studio should load the existing app library without restarting
+  // the already-running emulator. Do this once, never repeatedly on failure.
+  if(state.vmRunning&&!busy&&!autoRefreshed){autoRefreshed=true;setTimeout(()=>run('refresh'),50);}
+  if(!state.vmRunning)autoRefreshed=false;
+ }catch(e){error(e);}
+}
 async function frames(){try{if(state.vmRunning&&!document.hidden){const b=await api('frame',{},true);const u=URL.createObjectURL(b);$('screen').src=u;if(frameURL)URL.revokeObjectURL(frameURL);frameURL=u;$('placeholder').hidden=true;}else if(!state.vmRunning){$('placeholder').hidden=false;}}catch(e){}setTimeout(frames,document.hidden?2000:650);}
 function point(e){const r=$('screen').getBoundingClientRect();return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))};}
 function touch(p,down){inputQueue=inputQueue.catch(()=>{}).then(()=>api('touch',{...p,down})).catch(error);}
@@ -29,8 +76,14 @@ $('screen').addEventListener('pointerdown',e=>{if(!state.vmRunning)return;pointe
 $('screen').addEventListener('pointermove',e=>{if(!pointer||Date.now()-lastMove<60)return;pointer={id:e.pointerId,...point(e)};lastMove=Date.now();touch(pointer,true);});
 function release(){if(pointer){touch({x:pointer.x,y:pointer.y},false);pointer=null;}}$('screen').addEventListener('pointerup',release);$('screen').addEventListener('pointercancel',release);window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
 document.querySelectorAll('[data-gesture]').forEach(b=>b.addEventListener('click',()=>run('gesture',{action:b.dataset.gesture})));
-for(const a of ['start','shutdown','install','refresh','logs'])$(a).addEventListener('click',()=>run(a));
+for(const a of ['shutdown','install','refresh','logs'])$(a).addEventListener('click',()=>run(a));
+$('start').addEventListener('click',()=>{
+ if(!state.vmRunning&&state.connection?.canConnect){run('connect_running');}
+ else if(state.configured){run('start');}
+ else{$('onboarding').showModal();}
+});
+$('connect-running').addEventListener('click',()=>run('connect_running'));
 $('select').addEventListener('click',()=>run('select',{kind:'ipa'}));$('setup').addEventListener('click',()=>$('onboarding').showModal());$('close-setup').addEventListener('click',()=>{sessionStorage.setItem('setupDismissed','1');$('onboarding').close();});
-$('consent').addEventListener('change',()=>$('prepare-apple').disabled=!$('consent').checked);$('prepare-apple').addEventListener('click',()=>{if($('consent').checked){$('onboarding').close();run('prepare_apple');}});
-$('select-root').addEventListener('click',async()=>{const r=await run('select',{kind:'root'});if(r&&r.selected){$('root-name').textContent=r.name;$('create-device').disabled=false;}});$('create-device').addEventListener('click',()=>{$('onboarding').close();run('create_device');});poll();setInterval(poll,2000);frames();
+$('consent').addEventListener('change',()=>applyConnectionState(!!(state.job&&state.job.state==='running')));$('prepare-apple').addEventListener('click',()=>{if($('consent').checked){$('onboarding').close();run('prepare_apple');}});
+$('select-root').addEventListener('click',async()=>{const r=await run('select',{kind:'root'});if(r&&r.selected){$('root-name').textContent=r.name;applyConnectionState(!!(state.job&&state.job.state==='running'));}});$('create-device').addEventListener('click',()=>{$('onboarding').close();run('create_device');});poll();setInterval(poll,2000);frames();
 </script></body></html>
