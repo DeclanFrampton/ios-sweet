@@ -143,6 +143,14 @@ disk and synthetic non-Apple firmware bytes. It exercises the FAT job volume,
 sector padding, exact-length transfer, SHA-256 verification and HFSX writes.
 That test does not pretend to be a full iOS installation or use Apple data.
 
+The separate private acceptance run using the actual three pinned Apple
+components also completed successfully: OS/cryptex copying, root compatibility,
+app-management/network service installation, consistency repair and final
+read-only HFSX verification all passed with exit 0. All original firmware
+SHA-256 values were unchanged afterwards. The resulting image has not yet
+been booted as a new iOS VM, so this proves preparation, not first-boot or
+IPA-launch acceptance for that particular image.
+
 ## Where things go
 
 | Location inside the clone | Contents |

@@ -24,17 +24,27 @@
   The real public runtime passed an additional native synthetic-media boot:
   fresh 64-MiB HFSX target, real FAT job input, padded read-only source,
   byte-exact copy/checksum and unmount; exit 0 in 11 seconds. CI now runs this.
-- Full private acceptance is currently running beyond the previous failure:
-  exact 4730814044-byte staging SHA-256 passed, APFS mount succeeded and real
-  OS files are copying. Track `windows-runtime/full-preparation-acceptance.txt`
-  and `windows-runtime/full-preparation-acceptance-output.log`. Do not claim
-  full creation/boot until its completion is checked. Original ARM64 iPhone
-  PID 53180 is preserved, with no restart or disk change; the test only owns
-  a separate x86 preparation process and its new disposable target.
+- Full Apple-components-to-HFSX preparation acceptance **PASSED**, exit 0,
+  elapsed 1114 seconds. Byte-exact OS staging and SHA-256 passed; all OS,
+  SystemOS and AppOS files copied; scratch DMG removed; cryptex linking/root
+  tweaks, original and patched MobileGestalt hashes, agent/network seeding,
+  HFSX consistency repair and final read-only verification all completed.
+  The real preparer emitted `STUDIO_PREPARER_SUCCESS`, then powered down.
+  Track `windows-runtime/full-preparation-acceptance.txt` and
+  `windows-runtime/full-preparation-acceptance-output.log`; private evidence
+  includes `acceptance.json` under the pointed-to directory.
+- Rehashed all three original Apple images against pre-test hashes: unchanged.
+  Created the new test disk's QCOW2 overlay and private device/bridge config
+  for a later boot; removed only this test's boot.gz/job temporary inputs.
+  **This newly prepared image has NOT been booted as iOS yet.** Do not claim
+  first boot/app installation from a filesystem preparation test alone.
+  Original ARM64 iPhone PID 53180 remained running and untouched; zero x86
+  preparation instances remained after acceptance.
 - Main repair commit `66f18df` passed independent Windows CI `41518987337`,
   including public bootstrap, source tests, native boot and the new real
-  synthetic-disk transport check. The full Apple OS copy remains active,
-  with no new preparation errors; it is not yet a completed iPhone test.
+  synthetic-disk transport check. Main follow-up `bdc6abd` also passed
+  independent Windows CI `41520644704`, all 114 Python tests and all four
+  JavaScript suites.
 - Added rsync incremental-list telemetry (transferred files, discovered
   entries, listing-in-progress flag). The GUI explains that a near-99% copy
   figure can change while the file list grows, rather than implying overall

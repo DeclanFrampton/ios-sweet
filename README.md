@@ -77,10 +77,10 @@ for log locations and timeout behavior.
 | Area | What has actually been checked |
 | --- | --- |
 | Desktop source | Native Windows window, embedded viewer, local IPA preparation, transfer, registration and launch |
-| Guest setup | A private Studio guest created from an existing prepared root; repaired public setup engine boots and passes the diskless logging test |
+| Guest setup | Prepared-root import plus full assembly of all three pinned Apple components into a new private HFSX image; final read-only filesystem verification passed |
 | App acceptance | The supplied ARM64 iOSNova app registered and ran as a real iOS process; its Simple screen rendered |
 | Initial firmware download | All pinned Apple firmware components downloaded and passed archive integrity checks |
-| Clean-PC first run | Full Apple-download-to-root-to-boot workflow and installed-package acceptance still outstanding |
+| Clean-PC first run | Public dependency launch and full firmware-to-filesystem preparation checked; first iOS boot of that freshly assembled image remains unverified |
 | Running the source | Fresh public clone passed with no Python/developer tools on PATH; `start.cmd` downloaded its runtime and opened the native window; a repeat run reused it |
 | Public dependencies | Immutable Windows x64 runtime pack published for the launcher; it contains no Apple firmware or private guest data |
 
