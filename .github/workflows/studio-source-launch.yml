@@ -52,6 +52,13 @@ jobs:
           $runtime=Join-Path (Get-Location) ('.studio/runtime/'+$spec.version)
           & (Join-Path $runtime 'python/python.exe') tests/check_preparation_engine.py --assets (Join-Path $runtime 'assets') --output '.studio/setup-boot-test'
           if ($LASTEXITCODE -ne 0) { throw 'The real preparation engine did not boot' }
+      - name: Exercise byte-exact firmware transport on a new synthetic disk
+        shell: powershell
+        run: |
+          $spec=Get-Content desktop/runtime-lock.json -Raw|ConvertFrom-Json
+          $runtime=Join-Path (Get-Location) ('.studio/runtime/'+$spec.version)
+          & (Join-Path $runtime 'python/python.exe') tests/check_preparation_transport.py --assets (Join-Path $runtime 'assets') --output '.studio/setup-transport-test'
+          if ($LASTEXITCODE -ne 0) { throw 'Exact-length firmware transport failed' }
       - name: Check desktop progress and reconnect rendering
         shell: powershell
         run: |
@@ -67,4 +74,5 @@ jobs:
           path: |
             .studio/logs/*.log
             .studio/setup-boot-test/logs/**
+            .studio/setup-transport-test/**/logs/**
           retention-days: 7

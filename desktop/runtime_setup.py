@@ -6,6 +6,7 @@ disk. The iOS runtime itself is native Windows ARM64 QEMU.
 """
 from __future__ import annotations
 import contextlib
+import hashlib
 import importlib.util
 import json
 import os
@@ -24,6 +25,35 @@ import preparation_initrd
 
 QUIET_KERNEL='7dc86497ccd0c224ec1e6b8430be6f2dd7a46ac13ef795ed4047d0adf7d3bde8'
 HIDDEN=getattr(subprocess,'CREATE_NO_WINDOW',0)
+
+
+def firmware_metadata(firmware,diagnostic):
+    """Preserve file lengths: a compressed UDIF is not a sector-aligned APFS disk.
+
+    QEMU rounds raw-device lengths to 512-byte sectors. DMG readers find their
+    `koly` trailer relative to the *original* EOF, so hand the exact byte length
+    and digest to the appliance instead of treating every .dmg as raw APFS.
+    """
+    if set(firmware)!={'os','sysos','appos'}:raise ValueError('Expected all three Apple firmware images')
+    metadata={}
+    for name in ('os','sysos','appos'):
+        path=Path(firmware[name]);size=path.stat().st_size
+        if not 512<=size<=16*1024**3:raise ValueError('Unexpected Apple firmware size: '+name)
+        diagnostic.stage('Verifying '+name+' firmware format and exact byte length')
+        with path.open('rb') as f:
+            head=f.read(64);f.seek(-512,2);footer=f.read(512)
+            if footer[:4]==b'koly':kind='udif'
+            elif head[32:36]==b'NXSB' and size%512==0:kind='apfs'
+            else:raise ValueError('Unsupported or damaged Apple firmware image: '+name)
+            f.seek(0);digest=hashlib.sha256();read=0;stamp=time.monotonic()
+            for chunk in iter(lambda:f.read(4*1024**2),b''):
+                digest.update(chunk);read+=len(chunk)
+                if time.monotonic()-stamp>=5:
+                    diagnostic.write('Verified '+name+': '+str(read)+' / '+str(size)+' bytes',publish=True);stamp=time.monotonic()
+        if read!=size:raise RuntimeError('Firmware changed while being checked: '+name)
+        metadata[name]={'kind':kind,'size':size,'sha256':digest.hexdigest()}
+        diagnostic.write(name+': '+kind+', '+str(size)+' exact bytes; source stays read-only',publish=True)
+    return metadata
 
 
 def asset_paths(resource: Path):
@@ -80,11 +110,13 @@ def prepare(root: Path,asset: Path,qemu: Path,mode: str,report,firmware=None,dia
 
 def _prepare(root,asset,qemu,mode,diagnostic,firmware,resource):
     idle();token=secrets.token_hex(32);instance=str(uuid.uuid4())
+    images=firmware_metadata(firmware,diagnostic) if mode=='full' else None
     diagnostic.stage('Creating private setup job and logging-enabled boot image')
     job=root/('setup-input-'+uuid.uuid4().hex);job.mkdir()
     for name in ('iossweet-agent','iossweet-net-seed'):shutil.copy2(asset/name,job/name)
     data={'schema':1,'mode':mode,'token':token,'instanceId':instance,
         'hashes':{name:sha256(job/name) for name in ('iossweet-agent','iossweet-net-seed')}}
+    if images:data['firmware']=images
     (job/'job.json').write_text(json.dumps(data))
     resource=Path(resource) if resource else Path(__file__).resolve().parents[1]
     initrd=preparation_initrd.build(asset/'prepare-initrd.gz',resource,job/'prepare-logged-initrd.gz')

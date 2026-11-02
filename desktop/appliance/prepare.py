@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import time
+import re
 
 ROOT=Path('/target')
 
@@ -40,24 +41,83 @@ def sha(p):
                 print('Checksum read: '+str(done)+' / '+str(total)+' bytes',flush=True);last=time.monotonic()
     return h.hexdigest()
 
-def populate():
+def validate_image_metadata(images):
+    if not isinstance(images,dict) or set(images)!={'os','sysos','appos'}:
+        raise RuntimeError('Firmware transport metadata is missing. Update the source and retry; cached downloads can be reused.')
+    for name,meta in images.items():
+        if (not isinstance(meta,dict) or meta.get('kind') not in ('udif','apfs') or
+            type(meta.get('size')) is not int or not 512<=meta['size']<=16*1024**3 or
+            not isinstance(meta.get('sha256'),str) or not re.fullmatch('[0-9a-f]{64}',meta['sha256'])):
+            raise RuntimeError('Invalid exact-length firmware metadata: '+name)
+
+
+def copy_exact_firmware(source,destination,meta):
+    """Restore the byte-exact regular file from a read-only, padded block device.
+
+    Apple compressed UDIF OS images can end between sectors. APFS-FUSE reads
+    the last 512 *file* bytes to identify UDIF; the padded block-device EOF
+    silently changes that location. A verified temporary file fixes this
+    without changing/decrypting/re-downloading the Apple image.
+    """
+    size=meta['size'];h=hashlib.sha256();done=0;started=time.monotonic();last=started
+    with Path(source).open('rb') as src,Path(destination).open('xb') as dst:
+        while done<size:
+            chunk=src.read(min(4*1024**2,size-done))
+            if not chunk:raise RuntimeError('Read-only firmware transfer ended before its recorded file length')
+            dst.write(chunk);h.update(chunk);done+=len(chunk)
+            if time.monotonic()-last>=5 or done==size:
+                seconds=max(.001,time.monotonic()-started)
+                print(str(done)+' '+str(done*100//size)+'% '+str(round(done/seconds/1048576,2))+'MB/s exact DMG copy',flush=True)
+                last=time.monotonic()
+        dst.flush();os.fsync(dst.fileno())
+    if h.hexdigest()!=meta['sha256']:
+        raise RuntimeError('Firmware transport SHA-256 mismatch; the original download is unchanged')
+    with Path(destination).open('rb') as f:
+        f.seek(-512,2)
+        if f.read(4)!=b'koly':raise RuntimeError('Exact-length DMG is missing its UDIF trailer')
+    print('STUDIO_FIRMWARE_FILE_VERIFIED '+str(size)+' exact bytes; UDIF trailer preserved',flush=True)
+
+
+def mount_firmware(name,dev,meta):
+    src=Path('/firmware')/(name+'.dmg');src.symlink_to(dev)
+    scratch=None
+    # Restore only compressed images. Raw APFS cryptexes remain directly
+    # mounted from read-only block devices, with no extra copies.
+    if meta['kind']=='udif':
+        stage('Restoring exact '+name+' DMG file; original download stays read-only')
+        import uuid
+        scratch=ROOT/('.studio-firmware-'+uuid.uuid4().hex+'.dmg')
+        if shutil.disk_usage(ROOT).free<meta['size']+256*1024**2:
+            raise RuntimeError('Not enough free space in the private disk for temporary firmware staging')
+        copy_exact_firmware(src,scratch,meta);src=scratch
+    else:
+        with src.open('rb') as f:
+            if f.read(36)[32:36]!=b'NXSB':raise RuntimeError('Read-only APFS firmware header mismatch: '+name)
+    mount=Path('/firmware')/name;mount.mkdir()
+    stage('Mounting Apple '+name+' firmware image (read-only)')
+    run('/usr/local/bin/apfs-fuse','-o','allow_other',src,mount,timeout=300)
+    if not (mount/'root').is_dir():raise RuntimeError('Apple APFS image lacks root directory: '+name)
+    return mount,scratch
+
+
+def populate(images):
+    validate_image_metadata(images)
     print('ASSEMBLING_PRIVATE_IOS_ROOT',flush=True)
-    mounts=[]
-    for name,dev in [('os','/dev/vdc'),('sysos','/dev/vdd'),('appos','/dev/vde')]:
-        stage('Mounting Apple '+name+' firmware image (read-only)')
-        src=Path('/firmware')/(name+'.dmg');src.symlink_to(dev)
-        mount=Path('/firmware')/name;mount.mkdir()
-        run('/usr/local/bin/apfs-fuse','-o','allow_other',src,mount,timeout=300)
-        if not (mount/'root').is_dir():raise RuntimeError('Apple APFS image lacks root directory: '+name)
-        mounts.append(mount)
     stage('Formatting the new private HFSX disk')
     run('/usr/sbin/mkfs.hfsplus','-s','-J','-v','iOSRoot','/dev/vda',timeout=300)
     run('mount','-t','hfsplus','-o','force,rw','/dev/vda',ROOT)
-    for name,dest in [('os',ROOT),('sysos',ROOT/'private/preboot/Cryptexes/OS'),('appos',ROOT/'private/preboot/Cryptexes/App')]:
+    for name,dev,dest in [('os','/dev/vdc',ROOT),('sysos','/dev/vdd',ROOT/'private/preboot/Cryptexes/OS'),('appos','/dev/vde',ROOT/'private/preboot/Cryptexes/App')]:
+        mount,scratch=mount_firmware(name,dev,images[name])
         dest.mkdir(parents=True,exist_ok=True)
         print('COPYING '+name,flush=True)
         run('rsync','-aH','--numeric-ids','--info=progress2','--outbuf=L',
-            str(Path('/firmware')/name/'root')+'/',str(dest)+'/',timeout=3600)
+            str(mount/'root')+'/',str(dest)+'/',timeout=3600)
+        run('umount',mount,timeout=60)
+        if scratch:
+            if scratch.parent!=ROOT or not scratch.name.startswith('.studio-firmware-'):
+                raise RuntimeError('Refusing cleanup of an unexpected firmware staging path')
+            scratch.unlink()
+            print('STUDIO_FIRMWARE_STAGING_REMOVED '+name,flush=True)
     stage('Linking system and app cryptex files')
     linked=0;last_link=time.monotonic()
     for c in ('OS','App'):
@@ -120,7 +180,7 @@ def main():
     if job.get('schema')!=1 or job.get('mode') not in ('seed','full'):raise RuntimeError('Unsupported job')
     import re
     if not re.fullmatch('[0-9a-f]{64}',job.get('token','')):raise RuntimeError('Invalid capability')
-    if job['mode']=='full':populate()
+    if job['mode']=='full':populate(job.get('firmware'))
     else:
         # Only the new private overlay is writable. Never repair the source disk.
         stage('Checking the private HFSX image before mounting')
@@ -146,8 +206,31 @@ def log_self_test():
         time.sleep(.2)
     print('\nSTUDIO_DIAGNOSTIC_OUTPUT_VERIFIED',flush=True)
 
+
+def transport_self_test():
+    """Native CI uses ONLY a new 64-MiB target and synthetic non-Apple data."""
+    if 'studio_transport_smoke=1' not in Path('/proc/cmdline').read_text().split():
+        raise RuntimeError('Transport self-test requires its explicit kernel flag')
+    job=json.loads(Path('/job/job.json').read_text())
+    meta=job.get('fixture',{})
+    if (job.get('mode')!='synthetic-transport-test' or
+        Path('/sys/class/block/vda/size').read_text().strip()!='131072' or
+        type(meta.get('size')) is not int or not 512<meta['size']<1024**2):
+        raise RuntimeError('Refusing to format anything except the synthetic 64-MiB test target')
+    with Path('/dev/vdc').open('rb') as f:
+        if not f.read(32).startswith(b'STUDIO_SYNTHETIC_UDIF'):
+            raise RuntimeError('This test accepts only its synthetic fixture; no Apple firmware')
+    stage('Synthetic exact-length firmware transport; no Apple firmware or existing device')
+    run('/usr/sbin/mkfs.hfsplus','-s','-v','StudioTest','/dev/vda',timeout=60)
+    run('mount','-t','hfsplus','-o','force,rw','/dev/vda',ROOT,timeout=30)
+    out=ROOT/'synthetic.dmg';copy_exact_firmware(Path('/dev/vdc'),out,meta)
+    if out.stat().st_size!=meta['size']:raise RuntimeError('Synthetic image length changed')
+    out.unlink();run('umount',ROOT,timeout=30)
+    print('STUDIO_TRANSPORT_TEST_SUCCESS',flush=True)
+
 if __name__=='__main__':
     try:
         if sys.argv[1:]==['--log-self-test']:log_self_test()
+        elif sys.argv[1:]==['--transport-self-test']:transport_self_test()
         else:main()
     except Exception as e:print('STUDIO_PREPARER_ERROR '+str(e),flush=True);raise

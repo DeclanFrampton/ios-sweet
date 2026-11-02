@@ -108,6 +108,38 @@ this catches missing ROMs that an executable `--version` check cannot catch.
 That test is **not** a claim that the full Apple-firmware-to-app workflow has
 been verified on every PC.
 
+### Setup fails after a few seconds with `STUDIO_PREPARER_FAILED`
+
+Update with `git pull --ff-only`, close the failed Studio window, run
+`.\start.cmd` again, then retry **Download & create iPhone**. Keep the
+`.studio/data/firmware-cache` folder: completed firmware downloads are reused.
+Do not delete the data folder or replace a working device.
+
+A reproduced first-device failure was `invalid superblock` while mounting
+the OS image. The OS component is a **compressed UDIF DMG** with an exact
+non-sector-aligned byte length; the two cryptex components are raw APFS.
+Passing all three as raw virtual disks displaced the DMG's EOF-relative
+trailer when QEMU rounded the length to full sectors. This was a source bug,
+not a request for the user to re-download firmware or install Docker.
+
+Setup now identifies the formats and records their byte lengths and SHA-256
+digests. It restores only the compressed OS component to a byte-exact file
+inside the newly created private disk, verifies it, mounts it read-only,
+copies its files, then removes that temporary copy before the next component.
+The original downloaded images remain unchanged and read-only throughout.
+The raw APFS components continue to use the read-only virtual block devices.
+
+The failure banner now retains the first specific `STUDIO_PREPARER_ERROR`
+and its named stage instead of replacing the diagnosis with the generic
+`STUDIO_PREPARER_FAILED` marker. **Copy details** remains useful when a
+different error occurs. The source fix uses the existing runtime r2; it does
+not require a new installer or dependency pack.
+
+CI additionally boots the real preparation engine with a fresh 64-MiB test
+disk and synthetic non-Apple firmware bytes. It exercises the FAT job volume,
+sector padding, exact-length transfer, SHA-256 verification and HFSX writes.
+That test does not pretend to be a full iOS installation or use Apple data.
+
 ## Where things go
 
 | Location inside the clone | Contents |

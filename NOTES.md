@@ -1,5 +1,37 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 2 November 2026 - rapid first-device failure / exact-length DMG transport
+
+- User screenshot is from `C:\Users\decla\Documents\ios-sweet`, which is not
+  available on the linked DANHO machine. Do not claim its log was read.
+  Reproduced the same early `STUDIO_PREPARER_FAILED` locally with the actual
+  pinned Apple images and public r2 runtime, on a new disposable 16-GiB disk.
+  Earlier log: APFS-FUSE reported `invalid superblock` / `Unable to load
+  container` when mounting the OS image, then exit 22. The host error banner
+  discarded this diagnosis and showed only the final generic failure marker.
+- Confirmed OS image is compressed UDIF (4730814044 bytes, not sector aligned,
+  trailing `koly`), whereas SystemOS/AppOS are raw APFS. QEMU exposes the raw
+  OS drive rounded to 4730814464 bytes, displacing the footer-relative UDIF
+  read. QEMU's own dmg driver cannot handle this image's LZFSE/large chunks.
+- Host now supplies image kind, exact bytes and SHA-256. Before mounting the
+  compressed component, the appliance stages a checksum-verified byte-exact
+  regular file INSIDE the newly created private disk. It unmounts/deletes that
+  temporary copy after OS copying and before the raw cryptexes. Original
+  firmware is always read-only; no firmware/cache/runtime replacement needed.
+- Error monitoring now retains/redacts the first `STUDIO_PREPARER_ERROR` and
+  the named stage rather than overwriting it with `STUDIO_PREPARER_FAILED`.
+  All 113 Python tests passed (including new transport/root-cause regressions).
+  The real public runtime passed an additional native synthetic-media boot:
+  fresh 64-MiB HFSX target, real FAT job input, padded read-only source,
+  byte-exact copy/checksum and unmount; exit 0 in 11 seconds. CI now runs this.
+- Full private acceptance is currently running beyond the previous failure:
+  exact 4730814044-byte staging SHA-256 passed, APFS mount succeeded and real
+  OS files are copying. Track `windows-runtime/full-preparation-acceptance.txt`
+  and `windows-runtime/full-preparation-acceptance-output.log`. Do not claim
+  full creation/boot until its completion is checked. Original ARM64 iPhone
+  PID 53180 is preserved, with no restart or disk change; the test only owns
+  a separate x86 preparation process and its new disposable target.
+
 ## 2 November 2026 - preparation diagnostics and missing setup boot ROM
 
 - User reported a frozen `Preparing private iOS disk` message. On the linked

@@ -50,6 +50,19 @@ class PreparationLogTests(unittest.TestCase):
         self.assertIn('cannot mount job disk',self.log.path.read_text())
         self.assertEqual(self.log.state['exitCode'],7)
 
+    def test_specific_setup_error_survives_generic_failure_marker(self):
+        code="print('STUDIO_STAGE Mounting Apple os firmware');print('STUDIO_PREPARER_ERROR invalid superblock in compressed DMG');print('STUDIO_PREPARER_FAILED')"
+        with self.assertRaisesRegex(RuntimeError,'Mounting Apple os firmware: invalid superblock') as error:
+            self.run_monitor(code,timeout=5)
+        self.assertNotIn('reported: STUDIO_PREPARER_FAILED',str(error.exception))
+        self.assertEqual(self.log.state['rootCause'],'invalid superblock in compressed DMG')
+
+    def test_root_cause_redacts_private_values(self):
+        with self.assertRaises(RuntimeError) as error:
+            self.run_monitor("print('STUDIO_PREPARER_ERROR token=privatevalue');print('STUDIO_PREPARER_FAILED')",timeout=5)
+        self.assertNotIn('privatevalue',str(error.exception))
+        self.assertNotIn('privatevalue',json.dumps(self.log.state))
+
     def test_panic_is_detected_without_newline(self):
         with self.assertRaisesRegex(RuntimeError,'Kernel panic'):
             self.run_monitor("print('Kernel panic - not syncing: missing init',end='')",timeout=5)

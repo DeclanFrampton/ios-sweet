@@ -29,7 +29,10 @@ while [ ! -b /dev/vdb1 ] && [ "$i" -lt 30 ]; do
 done
 if mount -t vfat -o ro,iocharset=utf8,codepage=437 /dev/vdb1 /job; then
   echo STUDIO_PREPARER_STARTED
-  python3 -u /tools/prepare.py
+  case "$(cat /proc/cmdline)" in
+    *studio_transport_smoke=1*) python3 -u /tools/prepare.py --transport-self-test ;;
+    *) python3 -u /tools/prepare.py ;;
+  esac
   result=$?
 else
   echo 'STUDIO_PREPARER_ERROR: job volume unavailable'

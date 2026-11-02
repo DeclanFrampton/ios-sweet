@@ -207,16 +207,20 @@ def monitor(command,diagnostic,stage,timeout=7200,success_marker=None,heartbeat=
     thread=threading.Thread(target=reader,daemon=True);thread.start()
     activity=WindowsActivity(process.pid);started=time.monotonic();last_output=started
     beat=started;pending='';last_partial='';decoder=codecs.getincrementaldecoder('utf-8')('replace')
-    eof=False;success=not success_marker;fatal=None;previous={}
+    eof=False;success=not success_marker;fatal=None;root_cause=None;previous={}
     def line(text):
-        nonlocal success,fatal
+        nonlocal success,fatal,root_cause
         text=text.strip()
         if not text:return
         diagnostic.consume(text)
+        if text.startswith('STUDIO_PREPARER_ERROR') and root_cause is None:
+            root_cause=redact(text[len('STUDIO_PREPARER_ERROR'):].lstrip(' :'))[:1600]
+            diagnostic.state['rootCause']=root_cause
+            diagnostic.persist()
         if success_marker and text==success_marker:success=True
         if ('Kernel panic - not syncing' in text or text=='STUDIO_PREPARER_FAILED'
             or ('rom:' in text and 'Failed to open file' in text)
-            or 'could not load PC BIOS' in text):fatal=text
+            or 'could not load PC BIOS' in text):fatal=root_cause or text
     try:
         while True:
             now=time.monotonic()
@@ -233,7 +237,7 @@ def monitor(command,diagnostic,stage,timeout=7200,success_marker=None,heartbeat=
                 parts=re.split(r'[\r\n]',pending);pending=parts.pop()
                 for text in parts:line(text)
                 if len(pending)>MAX_LINE:line(pending[:MAX_LINE]);pending=''
-            if fatal:raise RuntimeError('Setup engine reported: '+fatal+'. See '+str(diagnostic.path))
+            if fatal:raise RuntimeError('Setup failed during '+diagnostic.state['stage']+': '+fatal+'. See '+str(diagnostic.path))
             now=time.monotonic()
             if now-beat>=heartbeat:
                 sample=activity.sample();quiet=max(0,now-last_output);silence=int(quiet)
@@ -252,7 +256,7 @@ def monitor(command,diagnostic,stage,timeout=7200,success_marker=None,heartbeat=
                     diagnostic.write('[partial output] '+pending);last_partial=pending
             if eof and process.poll() is not None:break
         if pending:line(pending+decoder.decode(b'',final=True))
-        if fatal:raise RuntimeError('Setup engine reported: '+fatal+'. See '+str(diagnostic.path))
+        if fatal:raise RuntimeError('Setup failed during '+diagnostic.state['stage']+': '+fatal+'. See '+str(diagnostic.path))
         code=process.wait(timeout=5);diagnostic.state.update(exitCode=code,activity='Process exited',**activity.sample())
         diagnostic.write('Process '+str(process.pid)+' exited with code '+str(code)+'.',publish=True)
         if code:raise RuntimeError('Setup process exited with code '+str(code)+' during '+diagnostic.state['stage']+

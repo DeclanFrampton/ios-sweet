@@ -43,6 +43,11 @@ for initial downloads, 35 GB free storage for device creation, and 6 GiB free
 RAM before starting the emulated iPhone. The desktop bootstrap does not itself
 start QEMU. The emulator remains experimental and not every IPA is supported.
 
+If device creation fails shortly after starting with
+**`STUDIO_PREPARER_FAILED`**, update the source and retry; a compressed-DMG
+transport bug is fixed on `main`. Keep your downloaded firmware and private
+device data. See [the failure and recovery notes](docs/RUN_FROM_SOURCE.md#setup-fails-after-a-few-seconds-with-studio_preparer_failed).
+
 See [run-from-source help](docs/RUN_FROM_SOURCE.md) for another data drive,
 logs and troubleshooting. For dependency checks without opening a window:
 
