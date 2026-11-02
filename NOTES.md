@@ -77,6 +77,20 @@
   with an unverifiable path still fails closed. Four regression cases added.
   All 128 Python tests pass. Original baseline disk has been restarted as
   PID 11476 with its same overlay; readiness/UI restoration is being checked.
+- Final restoration **verified**: original baseline PID 11476 uses the same
+  persistent overlay, authenticated agent/library returned all four existing
+  apps, and the home screen was visually checked in
+  product-tree-fix/restored-final.jpg. Earlier/new generated ADTs differ only
+  in the intentionally random chosen/random-seed field; product capabilities
+  are unchanged. No new app was installed during this test.
+- Updated the user's idle fresh-clone source by fast-forward pull and exact
+  start.cmd. It downloaded verified public r3, reopened uiReady=true and
+  refreshed successfully: vmRunning=true, four apps, one ARM64 instance.
+  Follow-up exit-race fix `88678af` also passed independent Windows CI
+  `41536810446`; the main startup repair `ef3cae2` and all public runtime
+  artifacts are available. No changes were made on the inaccessible decla
+  PC. There, close Studio, git pull --ff-only, start.cmd, then Start iPhone;
+  do not repeat the long disk-creation step or delete .studio/data.
 
 ## 2 November 2026 - rapid first-device failure / exact-length DMG transport
 
