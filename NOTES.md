@@ -20,7 +20,18 @@
 - Twelve new Python regressions and the Studio connection JavaScript checks
   passed, including stale PID, mismatched overlay, wrong guest identity,
   backup-before-switch, no credential leakage and no duplicate/reboot paths.
-  Full suite and real GUI reconnect acceptance are the next verification.
+  Full suite passed: 81 Python tests and all three JavaScript suites. The
+  independent Windows source-bootstrap CI also passed for main commit
+  `24d16a5` (run `41482348621`).
+- Live acceptance passed in the actual fresh-clone window: gracefully closed
+  only the unconfigured GUI, updated its checkout from main, and launched
+  through `start.cmd`. The updated window offered reconnect; authenticated
+  against guest agent v7 and saved a reference to the original Studio disk.
+  The library lists `com.iosnova`, `com.iossweet.studio.acceptance`, and
+  `com.iossweet.studio.smoketest`. The live framebuffer rendered SpringBoard;
+  private evidence is `windows-runtime/desktop-build/reconnected-iphone.png`.
+  Exactly one QEMU process remained, PID 53180, without a restart, new disk,
+  app reinstallation or change to its original device configuration.
 
 ## 2 November 2026 - clone-and-run source launcher, no app installer
 
