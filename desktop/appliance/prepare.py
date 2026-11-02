@@ -12,12 +12,19 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 
 ROOT=Path('/target')
 
-def run(*args):
+def stage(message):print('STUDIO_STAGE '+message,flush=True)
+
+def run(*args,timeout=1800):
     print('PREPARE_STEP '+str(args[0]),flush=True)
-    subprocess.run(list(map(str,args)),check=True)
+    # These arguments are fixed setup tools, never profile/signing secrets.
+    print('Running: '+' '.join(map(str,args)),flush=True)
+    try:subprocess.run(list(map(str,args)),check=True,timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError('Step timed out after '+str(timeout)+'s: '+str(args[0])) from None
 
 def module(name):
     spec=importlib.util.spec_from_file_location(name,Path('/tools')/(name+'.py'))
@@ -25,25 +32,34 @@ def module(name):
 
 def sha(p):
     h=hashlib.sha256()
+    total=p.stat().st_size;done=0;last=time.monotonic()
     with p.open('rb') as f:
-        for b in iter(lambda:f.read(1024**2),b''):h.update(b)
+        for b in iter(lambda:f.read(1024**2),b''):
+            h.update(b);done+=len(b)
+            if time.monotonic()-last>=5:
+                print('Checksum read: '+str(done)+' / '+str(total)+' bytes',flush=True);last=time.monotonic()
     return h.hexdigest()
 
 def populate():
     print('ASSEMBLING_PRIVATE_IOS_ROOT',flush=True)
     mounts=[]
     for name,dev in [('os','/dev/vdc'),('sysos','/dev/vdd'),('appos','/dev/vde')]:
+        stage('Mounting Apple '+name+' firmware image (read-only)')
         src=Path('/firmware')/(name+'.dmg');src.symlink_to(dev)
         mount=Path('/firmware')/name;mount.mkdir()
-        run('/usr/local/bin/apfs-fuse','-o','allow_other',src,mount)
+        run('/usr/local/bin/apfs-fuse','-o','allow_other',src,mount,timeout=300)
         if not (mount/'root').is_dir():raise RuntimeError('Apple APFS image lacks root directory: '+name)
         mounts.append(mount)
-    run('/usr/sbin/mkfs.hfsplus','-s','-J','-v','iOSRoot','/dev/vda')
+    stage('Formatting the new private HFSX disk')
+    run('/usr/sbin/mkfs.hfsplus','-s','-J','-v','iOSRoot','/dev/vda',timeout=300)
     run('mount','-t','hfsplus','-o','force,rw','/dev/vda',ROOT)
     for name,dest in [('os',ROOT),('sysos',ROOT/'private/preboot/Cryptexes/OS'),('appos',ROOT/'private/preboot/Cryptexes/App')]:
         dest.mkdir(parents=True,exist_ok=True)
         print('COPYING '+name,flush=True)
-        run('rsync','-aH','--numeric-ids',str(Path('/firmware')/name/'root')+'/',str(dest)+'/')
+        run('rsync','-aH','--numeric-ids','--info=progress2','--outbuf=L',
+            str(Path('/firmware')/name/'root')+'/',str(dest)+'/',timeout=3600)
+    stage('Linking system and app cryptex files')
+    linked=0;last_link=time.monotonic()
     for c in ('OS','App'):
         source=ROOT/'private/preboot/Cryptexes'/c
         for base,dirs,files in os.walk(source,followlinks=False):
@@ -53,6 +69,10 @@ def populate():
                 dest.parent.mkdir(parents=True,exist_ok=True)
                 if src.is_symlink():dest.symlink_to(os.readlink(src))
                 else:os.link(src,dest)
+                linked+=1
+                if time.monotonic()-last_link>=5:
+                    print('Linked '+str(linked)+' cryptex files',flush=True);last_link=time.monotonic()
+    stage('Configuring iOS directories and root compatibility')
     db=ROOT/'private/var/db'
     for rel,mode in [('diagnostics',0o751),('uuidtext',0o755),('diagnostics/timesync',0o755)]:
         p=db/rel;p.mkdir(parents=True,exist_ok=True);os.chown(p,272,272);p.chmod(mode)
@@ -60,6 +80,7 @@ def populate():
     p=ROOT/'private/var/keybags';p.mkdir(parents=True,exist_ok=True);p.chmod(0o700)
     keybag=p/'systembag.kb';keybag.write_bytes(plistlib.dumps({'KeyBagKeys':b'SWEET'}));keybag.chmod(0o600)
     run(sys.executable,'/tools/sweet-root-tweaks.py',ROOT)
+    stage('Verifying MobileGestalt cache before compatibility patch')
     mg=module('Patch-IosSweet-MGCompat');cache=ROOT/mg.CACHE.lstrip('/')
     digest=sha(cache)
     if digest==mg.ORIGINAL_SHA256:
@@ -68,10 +89,12 @@ def populate():
             if f.read(4)!=mg.ORIGINAL_INSTRUCTION:raise RuntimeError('Unexpected MobileGestalt instruction')
             f.seek(mg.INSTRUCTION_OFFSET);f.write(mg.PATCHED_INSTRUCTION)
     elif digest!=mg.PATCHED_SHA256:raise RuntimeError('Unsupported Apple cache: pinned compatibility patch refused')
+    stage('Verifying the patched cache checksum')
     if sha(cache)!=mg.PATCHED_SHA256:raise RuntimeError('Private cache verification failed')
     print('PRIVATE_MG_COMPAT_VERIFIED',flush=True)
 
 def seed(job):
+    stage('Installing app-management and network services')
     path=ROOT/'System/Library/xpc/launchd.plist'
     launchd=plistlib.loads(path.read_bytes());jobs=launchd.get('LaunchDaemons')
     if not isinstance(jobs,dict) or len(jobs)<100:raise RuntimeError('Not a prepared iOS Sweet root')
@@ -100,16 +123,31 @@ def main():
     if job['mode']=='full':populate()
     else:
         # Only the new private overlay is writable. Never repair the source disk.
-        rc=subprocess.run(['/usr/sbin/fsck.hfsplus','-fy','/dev/vda']).returncode
+        stage('Checking the private HFSX image before mounting')
+        rc=subprocess.run(['/usr/sbin/fsck.hfsplus','-fy','/dev/vda'],timeout=600).returncode
         if rc not in (0,1):raise RuntimeError('Private HFSX check failed: '+str(rc))
         run('mount','-t','hfsplus','-o','force,rw','/dev/vda',ROOT)
     seed(job)
+    stage('Flushing changes and unmounting the private disk')
     run('sync');run('umount',ROOT)
     if job['mode']=='full':
-        rc=subprocess.run(['/usr/sbin/fsck.hfsplus','-fy','/dev/vda'],stdout=subprocess.DEVNULL).returncode
+        stage('Final HFSX repair and consistency check')
+        rc=subprocess.run(['/usr/sbin/fsck.hfsplus','-fy','/dev/vda'],timeout=600).returncode
         if rc not in (0,1):raise RuntimeError('Final HFSX repair failed')
-    run('/usr/sbin/fsck.hfsplus','-fn','/dev/vda')
+    stage('Final read-only filesystem verification')
+    run('/usr/sbin/fsck.hfsplus','-fn','/dev/vda',timeout=600)
+
+
+def log_self_test():
+    stage('Preparation logging self-test; no disks are opened')
+    run('rsync','--version',timeout=10)
+    for percent in (0,50,100):
+        print('\r'+str(percent*1024)+' '+str(percent)+'% 1.00MB/s 0:00:01',end='',flush=True)
+        time.sleep(.2)
+    print('\nSTUDIO_DIAGNOSTIC_OUTPUT_VERIFIED',flush=True)
 
 if __name__=='__main__':
-    try:main()
+    try:
+        if sys.argv[1:]==['--log-self-test']:log_self_test()
+        else:main()
     except Exception as e:print('STUDIO_PREPARER_ERROR '+str(e),flush=True);raise

@@ -20,6 +20,7 @@ from bundles import sha256
 
 QEMU_FILES=('qemu-system-aarch64.exe','qemu-system-x86_64.exe','qemu-img.exe','COPYING','COPYING.LIB','README.rst')
 BIOS=('bios-256k.bin','bios.bin','bios-microvm.bin','kvmvapic.bin','vgabios-stdvga.bin','vgabios-virtio.bin','efi-e1000e.rom','efi-e1000.rom','pxe-e1000.rom','pxe-e1000e.rom')
+REQUIRED_BOOT=('bios-256k.bin','linuxboot_dma.bin','multiboot_dma.bin','pvh.bin')
 ASSETS=('prepare-kernel','prepare-initrd.gz','iossweet-agent','iossweet-net-seed','kernel.aks-quiet.sweet')
 
 
@@ -37,6 +38,8 @@ def main():
     (tools/'guest-install').mkdir(exist_ok=True)
     shutil.copy2(ROOT/'tools/guest-install/client.py',tools/'guest-install/client.py')
     ui=staging/'desktop';ui.mkdir(exist_ok=True);shutil.copy2(ROOT/'desktop/index.html',ui/'index.html')
+    (ui/'appliance').mkdir(exist_ok=True)
+    for name in ('init','prepare.py'):shutil.copy2(ROOT/'desktop/appliance'/name,ui/'appliance'/name)
     assets=ui/'assets';assets.mkdir(exist_ok=True)
     manifest=json.loads((args.assets/'manifest.json').read_text())
     for name in ASSETS:
@@ -53,8 +56,9 @@ def main():
         shutil.copy2(source,qemu/name)
     for source in args.qemu.glob('*.dll'):shutil.copy2(source,qemu/source.name)
     (qemu/'share').mkdir(exist_ok=True)
-    for name in BIOS:
+    for name in sorted(set(BIOS+REQUIRED_BOOT)):
         source=args.qemu/'share'/name
+        if name in REQUIRED_BOOT and not source.is_file():raise RuntimeError('Missing required setup boot ROM: '+name)
         if source.exists():shutil.copy2(source,qemu/'share'/name)
     for folder in ('licenses','license'):
         if (args.qemu/folder).is_dir():shutil.copytree(args.qemu/folder,qemu/folder,dirs_exist_ok=True)

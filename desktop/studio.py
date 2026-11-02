@@ -14,11 +14,13 @@ import shutil
 import subprocess
 import sys
 import threading
+import traceback
 import time
 from urllib.request import Request, urlopen
 import uuid
 
 import bundles
+import preparation_log
 import device_connection
 
 FROZEN = getattr(sys,'frozen',False)
@@ -65,7 +67,7 @@ class Studio:
         self.log('iOS Sweet Studio ready. Files and signing stay on this computer.')
 
     def log(self,text):
-        text=str(text).replace('\r',' ').strip()[:1200]
+        text=preparation_log.redact(text).replace('\r',' ').strip()[:1200]
         entry={'time':time.strftime('%H:%M:%S'),'text':text};self.events.append(entry)
         with (self.home/'logs/studio.log').open('a',encoding='utf-8') as f:f.write(entry['time']+' '+text+'\n')
 
@@ -140,7 +142,7 @@ class Studio:
             'deviceLocation':str(Path(self.config['overlay']).parent) if self.config else None}
         return {'product':'iOS Sweet Studio','version':'0.2.0-preview','configured':bool(self.config),
             'vmRunning':bool(r),'guest':self.cached_guest if r else None,'job':self.job,'events':list(self.events),
-            'connection':connection,
+            'connection':connection,'preparation':preparation_log.read_latest(self.home),
             'selected':self.selected['info'] if self.selected else None,'error':error,
             'dataDirectory':str(self.home),'platform':'Windows x64 / iOS 16.7.16'}
 
@@ -148,14 +150,19 @@ class Studio:
         allowed={'start','shutdown','install','refresh','launch','stop_app','create_device','prepare_apple','import_device','export_device','connect_running'}
         if action not in allowed:raise ValueError('Unknown action')
         if not self.lock.acquire(blocking=False):raise RuntimeError('Another operation is already running.')
-        self.job={'id':uuid.uuid4().hex,'action':action,'state':'running','message':'Starting'}
+        self.job={'id':uuid.uuid4().hex,'action':action,'state':'running','message':'Starting','startedAt':time.time()}
         def run():
             try:
                 result=getattr(self,action)(**kwargs)
                 self.job.update(state='succeeded',result=result,message='Completed')
             except Exception as e:
-                self.job.update(state='failed',message=str(e));self.log('ERROR: '+str(e))
-            finally:self.lock.release()
+                self.job.update(state='failed',message=preparation_log.redact(e));self.log('ERROR: '+str(e))
+                error_log=self.home/'logs/studio-error.log'
+                if error_log.exists() and error_log.stat().st_size>8*1024**2:
+                    os.replace(error_log,error_log.with_suffix('.previous.log'))
+                with error_log.open('a',encoding='utf-8') as f:
+                    f.write(preparation_log.utc()+' '+action+' '+self.job['id']+'\n'+preparation_log.redact(traceback.format_exc())+'\n')
+            finally:self.job['finishedAt']=time.time();self.lock.release()
         threading.Thread(target=run,daemon=True).start()
         return dict(self.job)
 
@@ -367,6 +374,12 @@ class Handler(BaseHTTPRequestHandler):
             action=self.path.removeprefix('/api/')
             if self.path!='/api/'+action:raise ValueError('Invalid route')
             if action=='status':result=self.studio.status()
+            elif action in ('preparation_log','open_preparation_log'):
+                if data:raise ValueError('Preparation logs do not accept arbitrary paths or arguments')
+                result=preparation_log.read_latest(self.studio.home,tail=action=='preparation_log')
+                if action=='open_preparation_log':
+                    if not result:raise ValueError('No preparation log exists in this workspace yet.')
+                    os.startfile(preparation_log.confined(self.studio.home,result['logFile']));result={'opened':True}
             elif action=='select':result=self.studio.choose(data.get('kind'))
             elif action=='frame':self.send(200,self.studio.viewer('frame'),'image/png');return
             elif action in ('touch','gesture'):result=self.studio.viewer(action,data)

@@ -58,6 +58,56 @@ The app operates on a private copy of the IPA. Unencrypted ARM64 iOS-device
 apps compatible with iOS 16.7.16 are the target; not every IPA is guaranteed
 to work, and App Store DRM is not removed.
 
+## Setup appears stuck at "Preparing your private iOS disk"
+
+Update the source and reopen Studio:
+
+```powershell
+git pull --ff-only
+.\start.cmd
+```
+
+The original `studio-runtime-v0.2.0-r1` dependency archive omitted QEMU's
+`linuxboot_dma.bin` boot ROM. The setup QEMU process could keep running even
+though its Linux preparation engine had not booted. Runtime **r2** includes
+that ROM and the other required direct-boot ROMs, and preflight now checks
+them before setup. `start.cmd` obtains the repaired version side-by-side;
+**keep `.studio/data` and your existing device folders**.
+
+Studio now provides **Setup log** in the top bar and **View live preparation
+log** beside Activity. The dialog shows the current stage, elapsed time,
+last console-output time, setup process ID, CPU time, OS-reported I/O, copy
+progress where available, and the actual error/exit code on failure. Use
+**Copy details** to share the bounded, redacted diagnostic output, or
+**Open full log file** for the complete local log. These views do not require
+the iPhone to be running.
+
+A heartbeat is recorded every five seconds during the preparation process,
+including when it produces no new console line. CPU/I/O activity means the
+process is doing work, not that useful progress is guaranteed. Percentages
+are reported only for the current file-copy operation, not the entire setup.
+After 90 seconds without console output, Studio explicitly labels the step
+quiet; a missing heartbeat is a separate stale-reporter warning. Boot-ROM
+errors and kernel panics fail promptly rather than silently waiting for the
+overall two-hour preparation deadline. Each individual setup command also
+has a bounded timeout. Only the subprocess created by that operation can be
+terminated; an already-running iPhone is not targeted.
+
+The per-run log is in `.studio/data/logs/preparation/<run-id>/preparation.log`
+(or `logs/preparation/` under your selected data directory). The last run's
+status is retained in `logs/preparation-latest.json`, and failed-job Python
+tracebacks are in `logs/studio-error.log`. The displayed tail is bounded to
+64 KiB; the full preparation log rotates at 8 MiB with one previous file.
+Known credential fields and bearer tokens are redacted, but review local
+paths and application details before sharing logs publicly.
+
+Source logging changes are layered over the verified setup runtime at boot
+time. They do not modify the downloaded runtime cache or any Apple disk.
+CI now boots the actual preparation engine in a diskless, networkless test;
+this catches missing ROMs that an executable `--version` check cannot catch.
+That test is **not** a claim that the full Apple-firmware-to-app workflow has
+been verified on every PC.
+
 ## Where things go
 
 | Location inside the clone | Contents |

@@ -106,5 +106,23 @@ class BoundaryTests(unittest.TestCase):
         h=self.auth();h['Host']='attacker.example'
         self.assertEqual(self.request('/api/status',{},h)[0],403)
 
+    def test_preparation_log_requires_authentication_and_no_path_argument(self):
+        self.assertEqual(self.request('/api/preparation_log',{}, {'Origin':self.base})[0],403)
+        self.assertEqual(self.request('/api/preparation_log',{'path':'C:/private.txt'},self.auth())[0],400)
+        self.assertEqual(self.request('/api/open_preparation_log',{'path':'C:/private.txt'},self.auth())[0],400)
+
+    def test_preparation_log_returns_only_bounded_redacted_workspace_tail(self):
+        import preparation_log
+        with tempfile.TemporaryDirectory() as d:
+            self.app.home=Path(d)
+            diagnostic=preparation_log.PreparationLog(self.app.home,'test',lambda text:None)
+            diagnostic.write('Token='+'a'*64,publish=True);diagnostic.finish('failed','missing boot firmware')
+            code,body=self.request('/api/preparation_log',{},self.auth())
+            self.assertEqual(code,200)
+            result=json.loads(body)
+            self.assertEqual(result['status'],'failed')
+            self.assertNotIn('a'*64,result['tail'])
+            self.assertLessEqual(len(result['tail']),65536)
+
 
 if __name__=='__main__':unittest.main()

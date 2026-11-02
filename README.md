@@ -50,12 +50,29 @@ logs and troubleshooting. For dependency checks without opening a window:
 .\start.cmd -PrepareOnly
 ```
 
+## Preparation progress and logs
+
+If setup appears stuck at **Preparing your private iOS disk**, update with
+`git pull --ff-only` and reopen using `.\start.cmd`. Runtime **r2** repairs a
+missing QEMU boot ROM that prevented the original source runtime from booting
+its preparation engine. The next launch downloads/verifies the repaired
+runtime without deleting your firmware cache or private iPhone data.
+
+Use **Setup log** in the top bar for timestamped live output, the current
+step, elapsed time, last output time, process CPU/I/O activity, file-copy
+progress where available, and failure/exit details. **Copy details** provides
+a redacted log tail; **Open full log file** opens the local per-run log.
+Silent-but-running and missing-heartbeat states are shown explicitly, rather
+than implying an endless spinner is progress. See the
+[preparation troubleshooting guide](docs/RUN_FROM_SOURCE.md#setup-appears-stuck-at-preparing-your-private-ios-disk)
+for log locations and timeout behavior.
+
 ## Current status and scope
 
 | Area | What has actually been checked |
 | --- | --- |
 | Desktop source | Native Windows window, embedded viewer, local IPA preparation, transfer, registration and launch |
-| Guest setup | A private Studio guest created from an existing prepared iOS Sweet root image |
+| Guest setup | A private Studio guest created from an existing prepared root; repaired public setup engine boots and passes the diskless logging test |
 | App acceptance | The supplied ARM64 iOSNova app registered and ran as a real iOS process; its Simple screen rendered |
 | Initial firmware download | All pinned Apple firmware components downloaded and passed archive integrity checks |
 | Clean-PC first run | Full Apple-download-to-root-to-boot workflow and installed-package acceptance still outstanding |
@@ -85,7 +102,7 @@ experimental development environment, not a secure personal iPhone.
 - **Rebuild all helper binaries:** use [the advanced source-build instructions below](#build-ios-sweet-studio-from-source).
 - **Reading just the guide:** [standalone build guide](https://github.com/danhol86/ios-sweet/blob/main/docs/STUDIO_SOURCE_BUILD.md).
 - **Existing development guest:** [native Windows notes](https://github.com/danhol86/ios-sweet/blob/main/docs/NATIVE_WINDOWS.md) and [guest installation bridge](https://github.com/danhol86/ios-sweet/blob/main/tools/guest-install/README.md).
-- **Dependencies:** the launcher automatically downloads its exact [runtime pack](https://github.com/danhol86/ios-sweet/releases/tag/studio-runtime-v0.2.0-r1). You do not download an installer or the older Docker preview.
+- **Dependencies:** the launcher automatically downloads its exact [runtime pack](https://github.com/danhol86/ios-sweet/releases/tag/studio-runtime-v0.2.0-r2). You do not download an installer or the older Docker preview.
 - **Original physical-phone port:** preserved in the historical section at the bottom. Its flashing instructions do not apply to desktop Studio.
 
 <!-- STUDIO_SOURCE_BUILD_BEGIN -->

@@ -24,6 +24,7 @@ QEMU_FILES=('qemu-system-aarch64.exe','qemu-system-x86_64.exe','qemu-img.exe','C
 BIOS=('bios-256k.bin','bios.bin','bios-microvm.bin','kvmvapic.bin','vgabios-stdvga.bin',
       'vgabios-virtio.bin','efi-e1000e.rom','efi-e1000.rom','pxe-e1000.rom','pxe-e1000e.rom')
 SIGNER_SHA256='fd5aeb908f1d3be60f7e372003772f52a6ce4148106d3aaf22aec6861f5d8a5e'
+REQUIRED_BOOT=('bios-256k.bin','linuxboot_dma.bin','multiboot_dma.bin','pvh.bin')
 
 
 def digest(path):
@@ -64,7 +65,7 @@ def main():
     p.add_argument('--qemu',required=True,type=Path)
     p.add_argument('--signer-zip',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path)
-    p.add_argument('--version',default='studio-runtime-v0.2.0-r1')
+    p.add_argument('--version',default='studio-runtime-v0.2.0-r2')
     a=p.parse_args()
     import re
     if not re.fullmatch(r'studio-runtime-v[0-9A-Za-z._-]+',a.version):p.error('Invalid immutable release tag')
@@ -123,7 +124,9 @@ def main():
         shutil.copy2(a.qemu/name,qemu/name)
     for lib in a.qemu.glob('*.dll'):shutil.copy2(lib,qemu/lib.name)
     (qemu/'share').mkdir()
-    for name in BIOS:
+    for name in sorted(set(BIOS+REQUIRED_BOOT)):
+        if name in REQUIRED_BOOT and not (a.qemu/'share'/name).is_file():
+            raise ValueError('Missing required setup boot ROM: '+name)
         if (a.qemu/'share'/name).exists():shutil.copy2(a.qemu/'share'/name,qemu/'share'/name)
     for directory in ('licenses','license'):
         if (a.qemu/directory).is_dir():shutil.copytree(a.qemu/directory,qemu/directory)

@@ -45,10 +45,26 @@ jobs:
         run: |
           .\start.cmd -PrepareOnly
           if ($LASTEXITCODE -ne 0) { throw 'Cached bootstrap failed' }
+      - name: Boot the setup engine without disks or Apple firmware
+        shell: powershell
+        run: |
+          $spec=Get-Content desktop/runtime-lock.json -Raw|ConvertFrom-Json
+          $runtime=Join-Path (Get-Location) ('.studio/runtime/'+$spec.version)
+          & (Join-Path $runtime 'python/python.exe') tests/check_preparation_engine.py --assets (Join-Path $runtime 'assets') --output '.studio/setup-boot-test'
+          if ($LASTEXITCODE -ne 0) { throw 'The real preparation engine did not boot' }
+      - name: Check desktop progress and reconnect rendering
+        shell: powershell
+        run: |
+          node tests/check_studio_preparation.js
+          if ($LASTEXITCODE -ne 0) { throw 'Preparation UI regression' }
+          node tests/check_studio_connection.js
+          if ($LASTEXITCODE -ne 0) { throw 'Reconnect UI regression' }
       - name: Bootstrap diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: studio-bootstrap-logs
-          path: .studio/logs/*.log
+          path: |
+            .studio/logs/*.log
+            .studio/setup-boot-test/logs/**
           retention-days: 7

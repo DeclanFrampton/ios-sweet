@@ -19,6 +19,8 @@ import time
 import uuid
 
 from bundles import sha256
+from preparation_log import PreparationLog, monitor
+import preparation_initrd
 
 QUIET_KERNEL='7dc86497ccd0c224ec1e6b8430be6f2dd7a46ac13ef795ed4047d0adf7d3bde8'
 HIDDEN=getattr(subprocess,'CREATE_NO_WINDOW',0)
@@ -38,6 +40,10 @@ def asset_paths(resource: Path):
     if sha256(asset/'kernel.aks-quiet.sweet')!=QUIET_KERNEL:raise RuntimeError('Unexpected iOS kernel.')
     for exe in ('qemu-system-aarch64.exe','qemu-system-x86_64.exe','qemu-img.exe'):
         if not (qemu/exe).is_file():raise RuntimeError('Native QEMU component missing: '+exe)
+    for name in ('bios-256k.bin','linuxboot_dma.bin','multiboot_dma.bin','pvh.bin'):
+        if not (qemu/'share'/name).is_file():
+            raise RuntimeError('The setup runtime is missing QEMU boot firmware '+name+
+                '. Update this checkout with git pull and run start.cmd to download the repaired runtime. Your device data is unchanged.')
     return asset,qemu
 
 
@@ -65,13 +71,29 @@ def config(root: Path,asset: Path,qemu: Path,token: str,instance: str):
         'viewerPort':8108,'qmpPort':4444,'instanceId':instance}
 
 
-def prepare(root: Path,asset: Path,qemu: Path,mode: str,report,firmware=None):
+def prepare(root: Path,asset: Path,qemu: Path,mode: str,report,firmware=None,diagnostic=None,resource=None):
+    own=diagnostic is None
+    diagnostic=diagnostic or PreparationLog(root.parent.parent,mode,report)
+    with diagnostic if own else contextlib.nullcontext(diagnostic):
+        return _prepare(root,asset,qemu,mode,diagnostic,firmware,resource)
+
+
+def _prepare(root,asset,qemu,mode,diagnostic,firmware,resource):
     idle();token=secrets.token_hex(32);instance=str(uuid.uuid4())
+    diagnostic.stage('Creating private setup job and logging-enabled boot image')
     job=root/('setup-input-'+uuid.uuid4().hex);job.mkdir()
     for name in ('iossweet-agent','iossweet-net-seed'):shutil.copy2(asset/name,job/name)
     data={'schema':1,'mode':mode,'token':token,'instanceId':instance,
         'hashes':{name:sha256(job/name) for name in ('iossweet-agent','iossweet-net-seed')}}
     (job/'job.json').write_text(json.dumps(data))
+    resource=Path(resource) if resource else Path(__file__).resolve().parents[1]
+    initrd=preparation_initrd.build(asset/'prepare-initrd.gz',resource,job/'prepare-logged-initrd.gz')
+    # The FAT job volume should not include the large initrd (QEMU's FAT
+    # driver otherwise has to map that unrelated file). Keep it beside it.
+    boot=root/('prepare-boot-'+uuid.uuid4().hex+'.gz');os.replace(initrd,boot)
+    (root/'preparation-log.txt').write_text(str(diagnostic.path),encoding='utf-8')
+    diagnostic.write('Device workspace: '+str(root),publish=True)
+    diagnostic.write('Full timestamped log: '+str(diagnostic.path),publish=True)
     target=root/('ios.qcow2' if mode=='seed' else 'ios.raw')
     def slash(p):
         p=str(p).replace('\\','/')
@@ -79,36 +101,28 @@ def prepare(root: Path,asset: Path,qemu: Path,mode: str,report,firmware=None):
         return p
     cmd=[str(qemu/'qemu-system-x86_64.exe'),'-machine','q35','-accel','tcg,thread=multi','-smp','2','-m','1536',
         '-display','none','-monitor','none','-serial','stdio','-no-reboot','-nic','none',
-        '-kernel',str(asset/'prepare-kernel'),'-initrd',str(asset/'prepare-initrd.gz'),
-        '-append','console=ttyS0 rdinit=/init panic=-1 quiet',
+        '-kernel',str(asset/'prepare-kernel'),'-initrd',str(boot),
+        '-append','console=ttyS0 rdinit=/init panic=-1 loglevel=6 printk.time=1',
         '-drive',f'file={slash(target)},format={"qcow2" if mode=="seed" else "raw"},if=virtio,cache=writeback',
         '-drive',f'file=fat:ro:{slash(job)},format=raw,if=virtio,readonly=on']
     if mode=='full':
         for name in ('os','sysos','appos'):
             cmd+=['-drive',f'file={slash(firmware[name])},format=raw,if=virtio,readonly=on']
-    log=root/'prepare.log';report('Preparing your private iOS disk with the native offline setup engine')
-    with log.open('w',encoding='utf-8') as out:
-        process=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace',creationflags=HIDDEN)
-        deadline=time.monotonic()+7200;success=False
-        # Stream bounded log lines. A watchdog terminates only this owned setup process.
-        def watchdog():
-            while process.poll() is None and time.monotonic()<deadline:time.sleep(2)
-            if process.poll() is None:process.terminate()
-        import threading
-        threading.Thread(target=watchdog,daemon=True).start()
-        for line in process.stdout:
-            out.write(line);out.flush()
-            if any(mark in line for mark in ('STUDIO_','COPYING ','ASSEMBLING_','PRIVATE_MG_','PREPARE_STEP')):
-                report(line.strip()[:500])
-            if line.strip()=='STUDIO_PREPARER_SUCCESS':success=True
-        rc=process.wait(timeout=20)
-    if rc or not success:raise RuntimeError('Local device preparation failed. See '+str(log)+'. The source image was not changed.')
+    try:
+        monitor(cmd,diagnostic,'Booting the offline disk-preparation engine',timeout=7200,
+            success_marker='STUDIO_PREPARER_SUCCESS')
+    finally:
+        # These are exclusively this run's newly created setup files. Do not
+        # remove the diagnostic log, downloaded firmware, source or target disk.
+        boot.unlink(missing_ok=True)
+        if job.parent.resolve()!=root.resolve() or job.is_symlink():raise RuntimeError('Unexpected setup cleanup path')
+        shutil.rmtree(job)
     if mode=='full':
-        subprocess.run([str(qemu/'qemu-img.exe'),'create','-f','qcow2','-F','raw','-b',str(root/'ios.raw'),str(root/'ios.qcow2')],
-            check=True,capture_output=True,creationflags=HIDDEN)
+        monitor([str(qemu/'qemu-img.exe'),'create','-f','qcow2','-F','raw','-b',str(root/'ios.raw'),str(root/'ios.qcow2')],
+            diagnostic,'Creating the writable iPhone overlay',timeout=120)
+    diagnostic.stage('Saving the verified device configuration')
     result=config(root,asset,qemu,token,instance)
-    shutil.rmtree(job)  # exclusively this freshly created, per-job directory
-    report('Private device verified; setup secrets removed from the temporary input folder')
+    diagnostic.write('Private device verified; setup secrets removed from the temporary input folder',publish=True)
     return result
 
 
@@ -119,13 +133,14 @@ def from_prepared_root(source: Path,home: Path,resource: Path,report=print):
     with source.open('rb') as f:
         f.seek(1024)
         if f.read(2) not in (b'HX',b'H+'):raise ValueError('Image is not HFSX/HFS+. An IPSW or APFS image cannot be imported here.')
-    asset,qemu=asset_paths(resource);root=directory(home)
-    report('Creating a private sparse copy; the original image stays untouched')
-    subprocess.run([str(qemu/'qemu-img.exe'),'convert','-f','raw','-O','raw','-S','4k',str(source),str(root/'ios.raw')],
-        check=True,capture_output=True,timeout=1800,creationflags=HIDDEN)
-    subprocess.run([str(qemu/'qemu-img.exe'),'create','-f','qcow2','-F','raw','-b',str(root/'ios.raw'),str(root/'ios.qcow2')],
-        check=True,capture_output=True,creationflags=HIDDEN)
-    return prepare(root,asset,qemu,'seed',report)
+    with PreparationLog(home,'import',report) as diagnostic:
+        diagnostic.stage('Checking preparation components and available storage')
+        asset,qemu=asset_paths(resource);root=directory(home)
+        monitor([str(qemu/'qemu-img.exe'),'convert','-p','-f','raw','-O','raw','-S','4k',str(source),str(root/'ios.raw')],
+            diagnostic,'Copying the prepared image; original stays untouched',timeout=1800)
+        monitor([str(qemu/'qemu-img.exe'),'create','-f','qcow2','-F','raw','-b',str(root/'ios.raw'),str(root/'ios.qcow2')],
+            diagnostic,'Creating the private writable overlay',timeout=120)
+        return prepare(root,asset,qemu,'seed',report,diagnostic=diagnostic,resource=resource)
 
 
 class ProgressWriter:
@@ -140,15 +155,18 @@ class ProgressWriter:
 
 
 def from_apple(home: Path,resource: Path,report=print):
-    asset,qemu=asset_paths(resource)
-    if shutil.disk_usage(home).free<35*1024**3:raise RuntimeError('Downloading and preparing iOS needs at least 35 GB free.')
-    root=directory(home);cache=home/'firmware-cache';cache.mkdir(exist_ok=True)
-    sys.path.insert(0,str(resource/'tools'))
-    spec=importlib.util.spec_from_file_location('studio_apple_firmware',resource/'tools/AutoPrepare-IosSweet.py')
-    apple=importlib.util.module_from_spec(spec);spec.loader.exec_module(apple)
-    report('Downloading iPhone X iOS 16.7.16 (20H392) directly from Apple')
-    with contextlib.redirect_stdout(ProgressWriter(report)):
-        dest,entries,wanted=apple.get_manifest(cache)
-        firmware={name:apple.extract_member(dest,entries,wanted[name]) for name in ('os','sysos','appos')}
-    subprocess.run([str(qemu/'qemu-img.exe'),'create','-f','raw',str(root/'ios.raw'),'16G'],check=True,capture_output=True,creationflags=HIDDEN)
-    return prepare(root,asset,qemu,'full',report,firmware)
+    with PreparationLog(home,'download',report) as diagnostic:
+        diagnostic.stage('Checking preparation components and available storage')
+        asset,qemu=asset_paths(resource)
+        if shutil.disk_usage(home).free<35*1024**3:raise RuntimeError('Downloading and preparing iOS needs at least 35 GB free.')
+        root=directory(home);cache=home/'firmware-cache';cache.mkdir(exist_ok=True)
+        sys.path.insert(0,str(resource/'tools'))
+        spec=importlib.util.spec_from_file_location('studio_apple_firmware',resource/'tools/AutoPrepare-IosSweet.py')
+        apple=importlib.util.module_from_spec(spec);spec.loader.exec_module(apple)
+        diagnostic.stage('Downloading and checking iPhone X iOS 16.7.16 from Apple')
+        with contextlib.redirect_stdout(ProgressWriter(diagnostic)):
+            dest,entries,wanted=apple.get_manifest(cache)
+            firmware={name:apple.extract_member(dest,entries,wanted[name]) for name in ('os','sysos','appos')}
+        monitor([str(qemu/'qemu-img.exe'),'create','-f','raw',str(root/'ios.raw'),'16G'],
+            diagnostic,'Allocating the private iOS disk',timeout=120)
+        return prepare(root,asset,qemu,'full',report,firmware,diagnostic=diagnostic,resource=resource)

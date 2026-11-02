@@ -1,5 +1,46 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 2 November 2026 - preparation diagnostics and missing setup boot ROM
+
+- User reported a frozen `Preparing private iOS disk` message. On the linked
+  PC the original ARM64 iPhone remained running (PID 53180); no active user
+  preparation process was present. Reproduced the public r1 setup-engine
+  failure in a separate, diskless/networkless x86 boot: QEMU printed
+  `Failed to open file linuxboot_dma.bin` but stayed alive consuming CPU.
+  The prior UI hid this output and could wait for its two-hour watchdog.
+- Fixed the runtime allowlists to require `linuxboot_dma.bin`,
+  `multiboot_dma.bin` and `pvh.bin`, and added a preflight gate. Published
+  immutable public dependency pack `studio-runtime-v0.2.0-r2`, 142487468 bytes,
+  SHA-256 `f5e1cabd84e487c28f9e41336477f0d8a2cfd8da66d5715e14828bd2f9bee9e4`.
+  Verified every r1 file before copying and matched the original QEMU binary
+  exactly before adding its boot ROMs. Audited 516 inventory entries: no Apple
+  firmware, SDK, IPA, guest credentials or private disk. R1 cache unchanged.
+- Added timestamped bounded/redacted per-run setup logs and persistent status,
+  a five-second stdout-independent heartbeat, current stage/elapsed/last-output
+  reporting, Windows CPU/I/O counters, quiet/stale warnings, actual exit codes,
+  timeout diagnostics and immediate kernel-panic/boot-ROM failure handling.
+  A heartbeat indicates process activity, never guaranteed forward progress.
+- GUI now offers Setup log / View live preparation log / Copy details / Open
+  full log. Same-origin authenticated endpoints expose only a fixed bounded
+  log tail selected by the app, never an arbitrary filesystem path. Failed
+  Python jobs also keep a redacted traceback. Live logs remain local.
+- Guest preparation prints named stages, unbuffered output, rsync progress2,
+  checksum/linking progress, filesystem checks and bounded command failures.
+  Source init/prepare.py are appended as an allowlisted cpio overlay to a
+  verified copied initrd; a source update works without rebuilding/downloading
+  another appliance or modifying the cached runtime/Apple images.
+- Staged r2 passed an actual native Windows offline-engine boot plus logging
+  self-test in 11 seconds, exit 0. No disks were attached and the existing
+  iPhone was not stopped. New tests cover CR/no-newline output, quiet/panic/
+  timeout/exit/missing-ROM failures, credential redaction and log path bounds.
+  CI now boots this diskless setup engine, not just `qemu --version`.
+- Public `start.cmd -PrepareOnly` downloaded r2 without credentials, verified
+  its archive/file inventory, imported current source and passed preflight.
+  All 103 Python tests and all four JavaScript suites passed. The freshly
+  downloaded public r2 pack also booted and completed the native engine test
+  in 11 seconds, exit 0. Full Apple-to-iPhone creation remains a
+  separate uncompleted acceptance test; do not claim it from the boot check.
+
 ## 2 November 2026 - reconnect a fresh clone to the existing Studio iPhone
 
 - User screenshot showed `Device stopped` and `Stop the existing iPhone before
