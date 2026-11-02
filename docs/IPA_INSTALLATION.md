@@ -1,71 +1,100 @@
-# Third-party IPA installation on native Windows iOS Sweet
+# IPA installation on native Windows iOS Sweet
 
-**Status (2 November 2026): NOT SUPPORTED / NOT DEMONSTRATED.** The native
-Windows QEMU guest is a full iOS-device build running an experimental ARM64
-kernel, not Apple's Xcode CoreSimulator. `xcrun simctl install` therefore
-does **not** target this guest. Do not claim that copying an `.ipa` file to
-the Windows filesystem, starting Safari, or receiving HTTP 200 from the
-viewer means the app was installed.
+## Verified local development installation — 2 November 2026
 
-For a read-only attempt to query the real guest lockdown device ID, see
-[device registration](DEVICE_REGISTRATION.md) and
-`python tools/probe-ios-device-identity.py`. The live guest has not returned
-a UDID; do not substitute an invented value when requesting Apple signing.
+The supplied unsigned IPA (`com.iosnova`, ARM64 iOS-device build, minimum
+iOS 15.1) has passed a real install-and-launch test in an **isolated** iOS
+Sweet QEMU guest. The exact app content displays the **Simple** sign-in form;
+tapping **Create account** changes it to the name/email/password form.
+No account was submitted or created during the UI test.
 
-## Safe read-only preflight
+Acceptance evidence from the guest:
 
-Run on the Windows host:
+- LaunchServices reports `com.iosnova` registered at `/Applications/iOSNova.app`.
+- The guest accepted `openApplicationWithBundleID:` and reported a running
+  `/Applications/iOSNova.app/iOSNova` process (PID 324 in the first successful run).
+- The framebuffer visibly showed the app's sign-in screen, then its Create
+  account screen after a real touch input.
+- The localhost browser panel also successfully requested a launch and
+  confirmed the live app process. HTTP 200 alone was not used as proof.
+- After a clean stop and restart through the new app launcher, LaunchServices
+  still reported the same registered bundle **without reinstalling it**.
+  A subsequent launch ran the executable as new PID 239 and visibly rendered
+  the Simple sign-in form again, confirming persistence across a full restart.
 
-```powershell
-cd D:\Projects\ios-sweet
-python tools/check-ipa.py 'C:\path\to\your-app.ipa'
-```
+## Open the tested app on the prepared Windows host
 
-This validates ZIP integrity and traversal protections, inspects the
-`Payload/*.app/Info.plist` bundle identifier, executable ARM64 architecture,
-iOS-device Mach-O target, minimum OS version, signature load command,
-`_CodeSignature/CodeResources` presence, and embedded provisioning-profile
-presence. It reads the supplied IPA **without extracting, copying, signing
-or uploading it**. A load command is not evidence that a cryptographic
-signature is valid; an archive passing this check is **not proof of device
-installation**. `installed_on_guest` always reports `false`.
+Double-click **iOS Sweet Apps** on the desktop, or run
+`Start-iOS-Sweet-Apps.cmd` from the repository. The machine-local manifest
+selects the tested private overlay and pinned kernel. The launcher reuses a
+matching current guest and refuses to replace an unrelated one.
 
-## Live test performed with the user's supplied unsigned IPA
+- App controls: `http://127.0.0.1:8109/`
+- Emulated iPhone screen: `http://127.0.0.1:8108/`
 
-The 6.59 MB archive is valid and contains one app, **iOSNova**,
-`com.iosnova`, minimum iOS 15.1, a 64-bit ARM device executable, with
-LC_BUILD_VERSION platform 2 (iOS device). It contains **no** Mach-O
-`LC_CODE_SIGNATURE`, `_CodeSignature/CodeResources`, or
-`embedded.mobileprovision`. iOS Sweet's current 16.7.16 guest satisfies its
-minimum version, but the package is not ready for a normal signed device
-installation. No original IPA content was added to Git.
+On the control page, **Check registration**, **Launch iOSNova**, and
+**Check running process** query the actual iOS guest. The guest takes time
+to boot under software emulation; an early connection failure is not proof
+that the prepared app is absent. Only one native iOS QEMU is started.
 
-On the running native QEMU guest, `lockdownd` was observed launching. A
-temporary QEMU user-network forwarding rule was added **only on host
-127.0.0.1** to guest TCP 62078; a read-only lockdown `QueryType` request
-received no reply during two bounded attempts (up to 18 seconds). The
-forwarding rule was then removed. The host has no `ideviceinstaller`,
-`ideviceinfo`, `iproxy` or `ios-deploy` binary, and even if these were
-installed, a usable QEMU device pairing/installation transport has not been
-established. No package installation or SpringBoard icon was observed.
+Fresh clones do not include the private app-test manifest, Apple filesystem,
+test IPA, capability token or compiled helper. The public repository
+contains source, validators and build/preparation scripts only.
 
-## Required for future working installation
+## What made this work
 
-1. Expose and verify a supported host-to-guest installation transport (for
-   example, usable lockdown/mobile installation proxy service via a
-   compatible USB or network bridge), or implement a guest install agent
-   with explicit integrity and rollback checks. Do not assume `lockdownd`
-   appearing in a boot log proves it is reachable.
-2. Sign the ARM64 iOS executable and bundle through a valid iOS device
-   signing path, with appropriate entitlements and provisioning if required
-   by that path; alternatively implement and **verify** a development-only
-   unsigned-code path rather than assuming one exists. Do not send keys or
-   a private IPA to a remote signer implicitly.
-3. Use the guest's actual MobileInstallation/installd registration process,
-   confirm the package is installed, then launch it from SpringBoard and
-   verify its process and initial screen. Test and preserve a checksum-
-   verified clone of the private QCOW2 first.
+The provided IPA was genuinely unsigned. A separate private copy was
+ad-hoc-signed locally, including its embedded React, ReactNativeDependencies
+and Hermes frameworks. Its Info.plists were canonicalised to binary format
+before signing. No Apple Developer private key or physical-device UDID was
+required or sent to any remote service.
 
-Until those milestones are complete, **the correct result is that IPA
-installation is unproven and this specific unsigned package was not
-installed**. The existing GUI and Safari functionality remain separate.
+The guest's dyld initially terminated the app with `security policy does not
+allow @ path expansion` for the React framework. The isolated app copy was
+therefore adjusted to reference its own embedded libraries at their exact
+test-guest paths, and the whole bundle was re-signed. **System dyld, the
+kernel and global signature enforcement were not changed for this fix.**
+The resulting relocated bundle is QEMU-test-specific, not a package to
+distribute to a normal physical iPhone.
+
+A dedicated guest helper invokes MobileContainerManager and LaunchServices
+for this one fixed bundle. Its local development signature carries explicit
+app-management permissions, verified at runtime. Its own per-process limit
+was raised from the guest's observed 6 MiB to a bounded 256 MiB to avoid the
+helper being killed while loading frameworks. Other processes' limits and
+global jetsam policy are unchanged.
+
+## Identity and signing distinction
+
+The helper's actual `MGCopyAnswer(UniqueDeviceID)` query returned an all-`f`
+placeholder. It reports that as **`udid: null`**, not a valid Apple UDID.
+Its persistent `vmInstanceId` is a local identifier only. This test does not
+establish Apple Developer registration, physical-device provisioning, an
+Apple device certificate or a working USB lockdown transport.
+
+Local development signing is sufficient for this prepared, custom-kernel
+test environment. It is **not** equivalent to Apple Ad Hoc distribution.
+The original IPA remains unchanged; other IPAs and additional permissions
+still require their own compatibility and acceptance tests.
+
+## Safety, rollback and reproducibility
+
+The working base image and baseline single/two-core overlays were preserved.
+All app installation changes are confined to a separate QCOW2 over the
+read-only base. A checksum-verified pre-change backup and a checkpoint of
+the successfully installed guest are kept under ignored
+`windows-runtime/backups/`.
+
+For the ordinary baseline guest, cleanly stop the app test using
+`tools/Start-IosSweet-Windows.ps1 -Stop`, then use the original
+`Start-iOS-Sweet-Windows.cmd`. Do not run two iOS guests simultaneously or
+mount a running guest disk writable.
+
+The guest agent is capability-protected and restricted to the QEMU private
+network. Its host control page is loopback-only, checks Origin/Host and a
+request nonce, and never exposes the private guest token to browser code.
+No generic shell, arbitrary executable path or public installer endpoint
+is available. See [implementation notes](../tools/guest-install/README.md).
+
+The existing `python tools/check-ipa.py "C:\path\app.ipa"` command is a
+read-only package preflight, **not** an installer or proof of installation.

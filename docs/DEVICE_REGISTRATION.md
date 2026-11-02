@@ -1,8 +1,14 @@
 # iOS Sweet: Device registration and IPA installation
 
-**Status (2 November 2026):** Windows QEMU is running, and the guest has
-outgoing HTTPS connectivity. A working Apple-registerable UDID and IPA
-installation bridge have **not** been demonstrated.
+**Status (2 November 2026):** a local development bridge has now installed
+and launched the supplied `com.iosnova` IPA in an isolated QEMU guest, with
+a running process and interactive app screen verified. See
+[IPA installation](IPA_INSTALLATION.md). An **Apple-registerable hardware
+UDID remains unverified** and is not required by this local signing path.
+
+The new in-guest agent called MobileGestalt directly and received an all-`f`
+placeholder. It explicitly reports `udid: null` rather than treating that
+placeholder (or its locally generated VM instance ID) as an Apple device ID.
 
 ## Check the actual guest identity
 
@@ -42,9 +48,11 @@ installed and no private Apple image was modified during the inspection.
 
 ## Why an invented UDID does not solve signing
 
-The SWEET XNU patch `0025-sweet-builtin-amfi-no-entitlements.patch`
-explicitly implements `sweet_amfi_get_udid(...)` as `return false`, reports
-no entitlements, and retains code signature/page hash checks. The known
+The original SWEET XNU patch `0025-sweet-builtin-amfi-no-entitlements.patch`
+implements `sweet_amfi_get_udid(...)` as `return false`. The later patch
+`0035-sweet-amfi-entitlements-platform-binaries.patch` adds XML entitlement
+handling; the new guest helper has now verified its app-management
+entitlements at runtime. Code signature/page hash checks are retained. The known
 MobileGestalt compatibility workaround skips one failing
 `MGCopyAnswer(UniqueDeviceID)` call to unblock SpringBoard; it does not
 provide an actual consistent device identity. QEMU `virt` exposes VirtIO
@@ -57,7 +65,12 @@ Apple's device provisioning documentation:
 - https://developer.apple.com/help/account/devices/register-a-single-device
 - https://developer.apple.com/documentation/xcode/distributing-your-app-to-registered-devices
 
-## Required implementation milestones
+## Apple registration versus the demonstrated local installation path
+
+The local bridge, registration and supplied-app launch milestones below
+have now been met in the isolated development guest. Hardware identity and
+Apple provisioning are separate and remain unverified; the local path must
+never be advertised as an Apple-registered device.
 
 1. **Guest identity service:** supply a stable, guest-specific identity
    consistently in MobileGestalt, lockdown and the kernel signing interface;
@@ -76,10 +89,10 @@ Apple's device provisioning documentation:
    IPA, check that SpringBoard lists the correct bundle ID, launch the
    process and verify the first screen. Preserve original Apple images.
 
-The provided `iOSNova` IPA is a compatible ARM64 device app but currently
-**unsigned**, with no Mach-O code-signature load command, `_CodeSignature`
-resources or provisioning profile. A signed IPA for a physical iPhone still
-cannot be assumed installable in the emulated guest.
+The original provided `iOSNova` IPA remains **unsigned and unchanged**.
+A private copy and its embedded frameworks were locally signed and adjusted
+for SWEET's loader, then registered and launched successfully. This is not
+proof that a physical-iPhone provisioning profile works in the emulator.
 
 Viewer: http://127.0.0.1:8108/. The guest is not Apple's CoreSimulator;
 `xcrun simctl install` cannot target it.

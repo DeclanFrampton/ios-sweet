@@ -1,5 +1,61 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 2 November 2026 — supplied IPA installed and rendered in native QEMU
+
+- Built a real ARM64 in-guest development agent and localhost-only host
+  control panel. This is now an actual install/registration/launch path,
+  not just an archive preflight or a speculative lockdown probe.
+- Supplied `com.iosnova` IPA (original SHA-256
+  `f468300c3f171c310a9448be1dadd46f180e1dcc7978ae162d50d00fdc18c87a5f`)
+  was copied privately, its metadata normalised, and its executable plus
+  embedded frameworks locally ad-hoc-signed with no Apple account keys.
+  Original Downloads IPA, baseline Apple raw disk and normal guest overlays
+  are unchanged.
+- Fixed three observed blockers in the isolated helper/app: a 6 MiB helper
+  process limit (bounded to 256 MiB for itself only); missing app-management
+  entitlements (added to the helper's local signature and verified through
+  SecTask); and dyld rejecting the app's embedded `@rpath` framework names
+  (private bundle libraries changed to their exact test-guest paths, then
+  the entire bundle re-signed). System dyld and global code-signing/jetsam
+  policy were not patched for this experiment.
+- V6 guest registered `/Applications/iOSNova.app` through LaunchServices,
+  accepted a real launch and ran PID 324. The framebuffer showed **Simple**
+  sign-in; a touch switched to **Create account** with name/email/password
+  fields, with the same process still running. No credentials submitted or
+  user account created. Local panel launch after Home also succeeded.
+  Private evidence: `windows-runtime/experiments/install-20261102/`
+  `iosnova-running.png` and `iosnova-interaction.png`.
+- Guest MobileGestalt actually returned an all-`f` placeholder. The helper
+  rejects it and reports `udid: null`; its persistent VM instance UUID is
+  explicitly not an Apple hardware UDID. **Apple Developer registration
+  remains unverified** and is not used by this successful local test path.
+- Added `Start-iOS-Sweet-Apps.cmd`, `tools/Start-IosSweet-Apps.ps1`, and the
+  Windows desktop shortcut **iOS Sweet Apps**. Local controls are at
+  `http://127.0.0.1:8109/`; the iPhone screen stays at `http://127.0.0.1:8108/`.
+  The ignored `windows-runtime/state/app-install-test.json` chooses the
+  tested private V6 overlay and pinned quiet-AKS kernel. The launcher
+  validates hashes and paths and reuses only a matching active guest;
+  original `Start-iOS-Sweet-Windows.cmd` remains the baseline fallback.
+- Preserved baseline backup `cpu2-before-install-20261102.qcow2` SHA-256
+  `53da4174ba2071465fba6cf9a572aca2590dc5bd18af820f23eba81d1a0ea47d`.
+  After successful app rendering, cleanly stopped the test guest and saved
+  `windows-runtime/backups/iosnova-installed-verified-20261102.qcow2`,
+  checksum `87e9be6dbbffac4912ec71054383d4660ac26eb3708a8a4a31f0d95369793a33`.
+  Restarted through the new app launcher into QEMU PID 54204, run
+  `windows-qemu-20261102-132831`, same V6 overlay. At 13:32 UTC the guest
+  independently reported `registered:true` **without re-registering or
+  reinstalling**. At 13:33 UTC the restarted guest accepted launch, ran
+  `/Applications/iOSNova.app/iOSNova` as new PID 239, and again rendered the
+  Simple sign-in form. Private screenshot:
+  `windows-runtime/experiments/install-20261102/iosnova-after-restart.png`.
+  Leave this verified app guest running for the user's test.
+- All 39 Python tests, both viewer JavaScript suites, the panel JavaScript
+  syntax check and Windows launcher parse/config/reuse checks passed.
+  Private app files, Apple data, generated agent binary, capability token,
+  images and local manifests stay under ignored `windows-runtime/`.
+  Only this supplied app has passed full live acceptance; arbitrary IPA
+  compatibility and physical-iPhone provisioning must not be implied.
+
 ## 31 October 2026 — `driverkitd` jetsam reason identified
 
 - Continued at 16:27 UTC: Windows free RAM fell to ~2 GiB, with **38**

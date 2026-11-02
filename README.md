@@ -1,10 +1,15 @@
 # ios-sweet
 
-For IPA signing/installation on native Windows QEMU, read
-[device registration](docs/DEVICE_REGISTRATION.md). The experimental guest
-currently has **no verified Apple-registerable UDID or IPA install bridge**.
-The new `python tools/probe-ios-device-identity.py` tool queries the actual
-guest lockdown service and fails closed instead of inventing an identifier.
+**Native Windows IPA test (2 November 2026):** the supplied `com.iosnova`
+IPA has now been locally signed, registered with the guest's LaunchServices,
+launched as a real iOS process, and rendered its interactive **Simple**
+sign-in / Create account screens. See [IPA installation](docs/IPA_INSTALLATION.md)
+and the [isolated guest bridge](tools/guest-install/README.md).
+
+This uses a **local development installation path**, not Apple Ad Hoc device
+provisioning. The guest still reports only a placeholder identity, not an
+Apple-registerable UDID; no fake hardware identifier is submitted to Apple.
+Only the supplied app has passed the full install-and-render acceptance test.
 
 **Apple's iOS 16 running on a Redmi Note 10 Pro.**
 

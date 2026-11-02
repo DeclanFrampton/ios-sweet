@@ -1,0 +1,40 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+<title>iOS Sweet — Local App Test</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#10141e;color:#f3f6ff;font:16px system-ui,sans-serif}
+main{max-width:840px;padding:38px 24px;margin:auto}h1{font-size:30px;letter-spacing:-.6px;margin:0 0 10px}
+p{color:#b8c4dc;line-height:1.65}.card{background:#1b2436;border:1px solid #344563;border-radius:18px;padding:24px;margin:20px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px}button,a.button{color:white;background:#425ed3;border:0;border-radius:10px;padding:13px 17px;font:600 15px system-ui;text-decoration:none;cursor:pointer}
+button:disabled{opacity:.45;cursor:wait}.secondary{background:#34435e!important}.status{font-weight:700;line-height:1.6}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0b101a;padding:18px;border-radius:10px;min-height:80px;font:13px/1.65 ui-monospace,monospace}
+.small{font-size:13px}.warning{border-left:4px solid #e0b15e;padding-left:15px}
+</style></head><body><main>
+<h1>iOS Sweet · Local App Test</h1>
+<p>This controls the isolated development guest. The supplied iOSNova app is locally code-signed and staged on its test disk.</p>
+<div class="card"><h2>iOSNova <small>com.iosnova</small></h2>
+<p class="status" id="state">Check the guest before registering or launching.</p>
+<div class="row"><button data-action="status">Check guest</button><button data-action="identity" class="secondary">Check identity</button><button data-action="staged" class="secondary">Check staged app</button><button data-action="apps" class="secondary">Check registration</button></div>
+<div class="row" style="margin-top:12px"><button data-action="register">Register iOSNova</button><button data-action="launch">Launch iOSNova</button><button data-action="processes" class="secondary">Check running process</button><a class="button secondary" href="http://127.0.0.1:8108/" target="_blank" rel="noopener noreferrer">Open emulator screen</a></div>
+<pre id="result">No guest operation requested yet.</pre></div>
+<p class="warning">Local development signing is not Apple Ad Hoc distribution. A VM instance ID is not a hardware UDID. This panel does not register a device with Apple or sign apps for physical iPhones.</p>
+<p class="small">The guest token stays on this computer. Operations are restricted to the staged iOSNova bundle; no shell access or arbitrary executable path is exposed.</p>
+<script>
+(()=>{'use strict';const nonce='CSRF_NONCE',buttons=[...document.querySelectorAll('button[data-action]')];
+const state=document.getElementById('state'),result=document.getElementById('result');
+async function act(action){buttons.forEach(b=>b.disabled=true);state.textContent='Requesting '+action+' from the iOS guest…';
+try{const response=await fetch('/action/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:nonce}),cache:'no-store'});
+const data=await response.json();result.textContent=JSON.stringify(data,null,2);
+if(!response.ok||data.error||data.success===false)state.textContent='Operation did not complete. See the actual guest result below.';
+else if(action==='status')state.textContent='Guest agent is responding from inside iOS.';
+else if(action==='apps')state.textContent=data.registered?'iOSNova is registered with iOS.':'iOSNova is not registered yet.';
+else if(action==='processes')state.textContent=data.running?'iOSNova has a running guest process.':'No iOSNova process is currently running.';
+else if(action==='launch')state.textContent=data.launchRequested?'Launch requested. Check the emulator screen and process.':'iOS rejected the launch request.';
+else if(action==='register')state.textContent=data.registrationReturned?'Registration request accepted. Check registration next.':'iOS rejected the registration request.';
+else if(action==='identity')state.textContent='Identity response received. Placeholder values are not valid Apple UDIDs.';
+else state.textContent='Staged bundle metadata read from the actual guest filesystem.';
+}catch(error){state.textContent='Could not reach the guest: '+error.message;}
+finally{buttons.forEach(b=>b.disabled=false);}}
+buttons.forEach(button=>button.addEventListener('click',()=>act(button.dataset.action)));
+})();
+</script></main></body></html>

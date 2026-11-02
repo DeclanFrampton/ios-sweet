@@ -1,3 +1,5 @@
 *.sh text eol=lf
 *.py text eol=lf
 *.ps1 text eol=crlf
+tools/guest-install/Dockerfile text eol=lf
+Start-iOS-Sweet-Apps.cmd text eol=crlf
