@@ -40,6 +40,14 @@
   downloaded public r2 pack also booted and completed the native engine test
   in 11 seconds, exit 0. Full Apple-to-iPhone creation remains a
   separate uncompleted acceptance test; do not claim it from the boot check.
+- Fix committed and pushed on main as `8db8d53`. Independent Windows CI
+  `41488918134` passed bootstrap, 103 Python tests, cache reuse, the actual
+  diskless setup-engine boot and progress/reconnect UI checks. Four local
+  JavaScript suites passed. Updated the user's idle fresh-clone GUI by a
+  graceful window close, fast-forward pull and exact start.cmd. It downloaded
+  r2, reopened with uiReady=true, exposes the new diagnostics endpoint/UI and
+  still sees the original running iPhone PID 53180. No old active preparation
+  job existed on this linked PC; new logging applies on the next setup run.
 
 ## 2 November 2026 - reconnect a fresh clone to the existing Studio iPhone
 
