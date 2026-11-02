@@ -32,6 +32,13 @@ to run Studio. Git is needed only for the clone/update operations above.
 Administrative elevation is not requested. Windows 10 build 19041 or later
 and its .NET Framework runtime are required; Windows 11 is supported.
 
+**Verified source-launch path:** a fresh public clone in a directory with a
+space downloaded its empty-cache dependencies and opened the native Studio
+window with Python, pip, Docker, Node and GitHub CLI unavailable on PATH.
+Repeating `start.cmd` reused the same window. A separate GitHub-hosted Windows
+runner passed bootstrap, source tests and cache reuse too. This verification
+covers opening Studio; it does not claim every PC or IPA has been tested.
+
 ## First time inside the app
 
 The window opens with the embedded iPhone viewer, app library and IPA picker.

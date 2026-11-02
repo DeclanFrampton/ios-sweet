@@ -54,8 +54,13 @@ logs and troubleshooting. For dependency checks without opening a window:
 | App acceptance | The supplied ARM64 iOSNova app registered and ran as a real iOS process; its Simple screen rendered |
 | Initial firmware download | All pinned Apple firmware components downloaded and passed archive integrity checks |
 | Clean-PC first run | Full Apple-download-to-root-to-boot workflow and installed-package acceptance still outstanding |
-| Running the source | `start.cmd` downloads verified app-local dependencies and launches the cloned source; no Studio installer |
+| Running the source | Fresh public clone passed with no Python/developer tools on PATH; `start.cmd` downloaded its runtime and opened the native window; a repeat run reused it |
 | Public dependencies | Immutable Windows x64 runtime pack published for the launcher; it contains no Apple firmware or private guest data |
+
+The [Windows clone-and-run check](https://github.com/danhol86/ios-sweet/actions/workflows/studio-source-launch.yml)
+also tests dependency preparation, the source regression suite, and cache reuse
+on a separate GitHub-hosted Windows runner. Desktop-bootstrap acceptance is
+separate from the first iPhone firmware/boot acceptance described above.
 
 This preview targets **Windows 10/11 x64 (Intel/AMD)**, not every machine.
 It accepts **unencrypted ARM64 iOS-device IPAs compatible with iOS 16.7.16**;

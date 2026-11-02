@@ -35,13 +35,31 @@
   idle/unused Studio GUI test windows were closed to validate source launch.
 - README now leads with normal clone / cd / start.cmd instructions; the
   complete advanced rebuild guide remains below and is not needed to run.
-  Fresh public-checkout/no-system-Python acceptance is the final check.
+  Fresh public-checkout/no-system-Python acceptance subsequently passed.
   Rechecked the public dependency release: not a draft, two public assets,
   142484753-byte ZIP with the source-pinned SHA-256. All 514 ZIP entries
   passed a private-media/credential-file exclusion check. The test source
   GUI is idle, unconfigured and not attached to the existing iPhone; it can
   be closed gracefully for fresh-checkout GUI acceptance without stopping
   the unrelated, already-running QEMU process.
+- Final acceptance on published `main` commit `2cc40a2`: cloned the public
+  repository without credentials into a brand-new directory containing a
+  space. Removed Python, py, pip, Docker, Node, Git and GitHub CLI from that
+  command's PATH and cleared inherited source/runtime/Python settings. The
+  empty-cache `start.cmd -PrepareOnly` downloaded and verified the public
+  runtime, passed native dependency checks, and returned 0. No system
+  Python or pre-existing `.studio` cache was available to that clone.
+- Then ran the exact user command `start.cmd` from the same public clone.
+  It opened native Studio with private `pythonw.exe`, reported `uiReady=true`,
+  and exposed a nonzero native window handle and the expected window title.
+  A second identical command returned 0 and reused the same GUI PID 9412.
+  Existing QEMU PID 53180 remained the sole emulator; no guest disk or
+  unrelated application/container was stopped or modified.
+- Independent GitHub Actions Windows runner `41479269363` completed
+  **successfully** for `2cc40a2`: empty-cache dependency bootstrap, all
+  source tests using the downloaded interpreter, and cached bootstrap reuse.
+  This verifies clone-to-desktop dependency setup. It does not replace the
+  still-outstanding clean-PC Apple-firmware-to-boot/app-install test.
   This task does not claim a new clean-PC Apple-firmware-to-iPhone boot test;
   users must still authorise the in-app Apple download before first device
   creation. Existing prepared-root install/launch evidence remains valid.
