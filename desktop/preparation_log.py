@@ -145,6 +145,10 @@ class PreparationLog:
         match=re.search(r'^\s*([\d,]+)\s+(\d{1,3})%\s+([\d.]+\S+/s)',line)
         if match and int(match[2])<=100:
             self.state['copyProgress']={'bytes':int(match[1].replace(',','')),'percent':int(match[2]),'rate':match[3]}
+            files=re.search(r'\(xfr#(\d+),\s*(ir-chk|to-chk)=(\d+)/(\d+)\)',line)
+            if files:
+                self.state['copyProgress'].update(transferredFiles=int(files[1]),
+                    discoveredEntries=int(files[4]),listingInProgress=files[2]=='ir-chk')
         self.write(line,output=True)
 
 

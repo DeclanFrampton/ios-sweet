@@ -86,6 +86,9 @@ A heartbeat is recorded every five seconds during the preparation process,
 including when it produces no new console line. CPU/I/O activity means the
 process is doing work, not that useful progress is guaranteed. Percentages
 are reported only for the current file-copy operation, not the entire setup.
+During incremental file discovery, the log also shows transferred-file and
+discovered-entry counts and explains why a copy percentage can change or sit
+near 99% while more files are still being found. It is not overall completion.
 After 90 seconds without console output, Studio explicitly labels the step
 quiet; a missing heartbeat is a separate stale-reporter warning. Boot-ROM
 errors and kernel panics fail promptly rather than silently waiting for the

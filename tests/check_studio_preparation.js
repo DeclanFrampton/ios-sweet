@@ -10,5 +10,7 @@ assert.match($('prep-meta').textContent,/elapsed 2m 3s/);assert.match($('prep-me
 $=render({stage:'Mounting',status:'running',elapsedSeconds:150,outputAgeSeconds:140});assert.match($('prep-warning').textContent,/not confirmed/);
 $=render({stage:'Mounting',status:'running',stale:true,heartbeatAgeSeconds:60});assert.match($('prep-warning').textContent,/not checked in/);
 $=render({stage:'Mounting',status:'failed',error:'Cannot mount image'});assert.equal($('prep-warning').textContent,'Cannot mount image');
+$=render({stage:'Copying',status:'running',copyProgress:{percent:99,rate:'8MB/s',transferredFiles:143143,discoveredEntries:262888,listingInProgress:true}});
+assert.match($('prep-meta').textContent,/Files transferred: 143143/);assert.match($('prep-meta').textContent,/Still discovering files/);
 assert.ok(html.includes("box.value=JSON.stringify"));assert.ok(!html.includes('box.innerHTML'));
 console.log('PASS Studio preparation diagnostics: elapsed time, copy-only progress, quiet, stale, failed, safe plain text');

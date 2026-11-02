@@ -31,6 +31,15 @@
   full creation/boot until its completion is checked. Original ARM64 iPhone
   PID 53180 is preserved, with no restart or disk change; the test only owns
   a separate x86 preparation process and its new disposable target.
+- Main repair commit `66f18df` passed independent Windows CI `41518987337`,
+  including public bootstrap, source tests, native boot and the new real
+  synthetic-disk transport check. The full Apple OS copy remains active,
+  with no new preparation errors; it is not yet a completed iPhone test.
+- Added rsync incremental-list telemetry (transferred files, discovered
+  entries, listing-in-progress flag). The GUI explains that a near-99% copy
+  figure can change while the file list grows, rather than implying overall
+  preparation is almost complete. An additional Python/JS regression covers
+  the real observed copy line; no synthetic progress percentage is invented.
 
 ## 2 November 2026 - preparation diagnostics and missing setup boot ROM
 

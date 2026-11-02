@@ -55,6 +55,8 @@ function renderPreparation(p){
  if(p.writeBytes!=null)detail+=' | writes '+(p.writeBytes/1048576).toFixed(1)+' MiB';
  if(p.freeBytes!=null)detail+='\nFree space: '+(p.freeBytes/1073741824).toFixed(1)+' GiB';
  if(p.copyProgress)detail+='\nCurrent copy only: '+p.copyProgress.percent+'% | '+p.copyProgress.rate;
+ if(p.copyProgress?.transferredFiles!=null)detail+='\nFiles transferred: '+p.copyProgress.transferredFiles+' | entries discovered: '+p.copyProgress.discoveredEntries;
+ if(p.copyProgress?.listingInProgress)detail+='\nStill discovering files; the copy percentage can change as the list grows.';
  detail+='\nLog: '+p.logFile;
  $('prep-meta').textContent=detail;
  let warning='';

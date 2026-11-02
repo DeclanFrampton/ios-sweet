@@ -40,6 +40,17 @@ class PreparationLogTests(unittest.TestCase):
         self.assertIn('Heartbeat:',text);self.assertIn('without a newline',text)
         self.assertIn('progress is not confirmed',text)
 
+    def test_incremental_copy_discovery_is_not_presented_as_overall_completion(self):
+        self.log.consume('6,452,584,469 99% 8.58MB/s 0:11:57 (xfr#143143, ir-chk=1040/262888)')
+        copy=self.log.state['copyProgress']
+        self.assertEqual(copy['transferredFiles'],143143)
+        self.assertEqual(copy['discoveredEntries'],262888)
+        self.assertTrue(copy['listingInProgress'])
+        self.assertEqual(self.log.state['status'],'running')
+        self.log.consume('7,000,000,000 100% 9.0MB/s 0:12:57 (xfr#150000, to-chk=0/270000)')
+        self.assertFalse(self.log.state['copyProgress']['listingInProgress'])
+        self.assertEqual(self.log.state['status'],'running')
+
     def test_no_success_marker_cannot_mark_device_ready(self):
         with self.assertRaisesRegex(RuntimeError,'without REQUIRED'):
             self.run_monitor("print('only started')",success_marker='REQUIRED',timeout=5)
