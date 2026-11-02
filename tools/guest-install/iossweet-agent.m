@@ -35,6 +35,7 @@ static unsigned activeConnections;
 static pthread_mutex_t connectionMutex = PTHREAD_MUTEX_INITIALIZER;
 static _Atomic(const char *) operationPhase="idle";
 static _Atomic(mach_port_t) operationThread=MACH_PORT_NULL;
+#include "desktop-installer.h"
 // Apple's XNU memorystatus interface. This changes ONLY this test helper's
 // own bounded process limit; it never disables jetsam or edits global policy.
 typedef struct { int32_t active; uint32_t activeAttr; int32_t inactive; uint32_t inactiveAttr; } AgentMemlimit;
@@ -108,7 +109,7 @@ static NSDictionary *agentPrivileges(void) {
 }
 
 static NSDictionary *status(void) {
-    return @{@"bridge":@"iossweet-development-agent", @"version":@6,
+    return @{@"bridge":@"iossweet-development-agent", @"version":@7, @"multiAppInstall":@YES,
              @"guestProcessId":@(getpid()), @"guestUid":@(getuid()),
              @"vmInstanceId":configuration[@"InstanceId"] ?: @"missing",
              @"developmentOnly":@YES, @"appleProvisioningVerified":@NO,
@@ -151,6 +152,7 @@ static NSDictionary *identity(void) {
 }
 
 static NSDictionary *listApplications(void) {
+    if(managedApps().count==0)return @{@"applications":@[],@"registered":@NO};
     id w = workspace();
     SEL all = NSSelectorFromString(@"allApplications");
     if (!w || ![w respondsToSelector:all]) return @{@"error":@"LaunchServices workspace unavailable"};
@@ -161,8 +163,8 @@ static NSDictionary *listApplications(void) {
         if (![application respondsToSelector:identifier])identifier=NSSelectorFromString(@"applicationIdentifier");
         if (![application respondsToSelector:identifier]) continue;
         NSString *name = ((id (*)(id,SEL))objc_msgSend)(application,identifier);
-        if (![name isEqualToString:configuration[@"BundleId"]]) continue;
-        NSMutableDictionary *entry = [@{@"bundleId":name} mutableCopy];
+        if (!selectApp(name)) continue;
+        NSMutableDictionary *entry = [@{@"bundleId":name,@"name":managedApps()[name][@"DisplayName"] ?: name} mutableCopy];
         SEL pathSelector = NSSelectorFromString(@"bundleURL");
         if ([application respondsToSelector:pathSelector]) {
             NSURL *url = ((id (*)(id,SEL))objc_msgSend)(application,pathSelector);
@@ -174,7 +176,7 @@ static NSDictionary *listApplications(void) {
 }
 
 static NSDictionary *readStagedInfo(NSError **error) {
-    NSString *path=[configuration[@"BundlePath"] stringByAppendingPathComponent:@"Info.plist"];
+    NSString *path=[selectedApp[@"BundlePath"] stringByAppendingPathComponent:@"Info.plist"];
     NSData *data=[NSData dataWithContentsOfFile:path options:0 error:error];
     if(!data)return nil;
     id decoded=[NSPropertyListSerialization propertyListWithData:data options:NSPropertyListImmutable format:NULL error:error];
@@ -182,10 +184,10 @@ static NSDictionary *readStagedInfo(NSError **error) {
 }
 
 static NSDictionary *stagedApplication(void) {
-    NSString *path=[configuration[@"BundlePath"] stringByAppendingPathComponent:@"Info.plist"];
+    NSString *path=[selectedApp[@"BundlePath"] stringByAppendingPathComponent:@"Info.plist"];
     struct stat st={0};errno=0;int rc=stat(path.fileSystemRepresentation,&st);int err=errno;
     NSError *error=nil;NSDictionary *info=readStagedInfo(&error);
-    return @{@"bundlePath":configuration[@"BundlePath"],@"infoStatResult":@(rc),
+    return @{@"bundlePath":selectedApp[@"BundlePath"],@"infoStatResult":@(rc),
         @"infoStatErrno":@(rc==0?0:err),@"infoBytes":@(st.st_size),
         @"decodedBundleId":info[@"CFBundleIdentifier"] ?: (id)[NSNull null],
         @"decodedExecutable":info[@"CFBundleExecutable"] ?: (id)[NSNull null],
@@ -194,9 +196,9 @@ static NSDictionary *stagedApplication(void) {
 
 static NSDictionary *registerApplication(void) {
     atomic_store(&operationPhase,"reading_staged_bundle");
-    NSString *bundlePath = configuration[@"BundlePath"];
+    NSString *bundlePath = selectedApp[@"BundlePath"];
     NSError *readError=nil;NSDictionary *info=readStagedInfo(&readError);
-    if (![info[@"CFBundleIdentifier"] isEqual:configuration[@"BundleId"]])
+    if (![info[@"CFBundleIdentifier"] isEqual:selectedApp[@"BundleId"]])
         return @{@"error":@"Staged bundle does not match fixed allowlist",@"metadata":stagedApplication()};
     atomic_store(&operationPhase,"opening_LaunchServices_workspace");
     id w = workspace(); SEL selector = NSSelectorFromString(@"registerApplicationDictionary:");
@@ -211,7 +213,7 @@ static NSDictionary *registerApplication(void) {
         SEL create=NSSelectorFromString(@"containerWithIdentifier:createIfNecessary:existed:error:");
         NSError *containerError=nil;id container=nil;
         atomic_store(&operationPhase,"creating_app_data_container");
-        if(c && [c respondsToSelector:create])container=((id (*)(id,SEL,id,BOOL,BOOL*,NSError**))objc_msgSend)(c,create,configuration[@"BundleId"],YES,NULL,&containerError);
+        if(c && [c respondsToSelector:create])container=((id (*)(id,SEL,id,BOOL,BOOL*,NSError**))objc_msgSend)(c,create,selectedApp[@"BundleId"],YES,NULL,&containerError);
         NSURL *url=(container && [container respondsToSelector:NSSelectorFromString(@"url")])?((id (*)(id,SEL))objc_msgSend)(container,NSSelectorFromString(@"url")):nil;
         if(!url.path)return @{@"error":@"The guest did not create the app's data container",@"reason":containerError.localizedDescription ?: @"unavailable",
             @"containerErrorDomain":containerError.domain ?: @"unknown",@"containerErrorCode":@(containerError.code),
@@ -219,7 +221,7 @@ static NSDictionary *registerApplication(void) {
         atomic_store(&operationPhase,"building_registration_dictionary");
         NSMutableDictionary *registration=[info mutableCopy];
         registration[@"ApplicationType"]=@"System";
-        registration[@"Path"]=bundlePath;registration[@"CodeInfoIdentifier"]=configuration[@"BundleId"];
+        registration[@"Path"]=bundlePath;registration[@"CodeInfoIdentifier"]=selectedApp[@"BundleId"];
         registration[@"IsContainerized"]=@YES;registration[@"Container"]=url.path;
         registration[@"EnvironmentVariables"]=@{@"HOME":url.path,@"CFFIXED_USER_HOME":url.path,@"TMPDIR":[url.path stringByAppendingPathComponent:@"tmp"]};
         registration[@"IsAdHocSigned"]=@YES;registration[@"LSInstallType"]=@1;
@@ -230,14 +232,14 @@ static NSDictionary *registerApplication(void) {
         success=((BOOL (*)(id,SEL,id))objc_msgSend)(w,NSSelectorFromString(@"registerApplicationDictionary:"),registration);
         atomic_store(&operationPhase,"registration_api_returned");
     }
-    return @{@"registrationReturned":success?@YES:@NO,@"method":method, @"bundleId":configuration[@"BundleId"]};
+    return @{@"registrationReturned":success?@YES:@NO,@"method":method, @"bundleId":selectedApp[@"BundleId"]};
 }
 
 static NSDictionary *launchApplication(void) {
     id w = workspace(); SEL selector = NSSelectorFromString(@"openApplicationWithBundleID:");
     if (!w || ![w respondsToSelector:selector]) return @{@"error":@"Launch API unavailable"};
-    BOOL result = ((BOOL (*)(id,SEL,id))objc_msgSend)(w,selector,configuration[@"BundleId"]);
-    return @{@"launchRequested":@(result), @"bundleId":configuration[@"BundleId"],
+    BOOL result = ((BOOL (*)(id,SEL,id))objc_msgSend)(w,selector,selectedApp[@"BundleId"]);
+    return @{@"launchRequested":@(result), @"bundleId":selectedApp[@"BundleId"],
              @"screenVerified":@NO};
 }
 
@@ -247,13 +249,13 @@ static NSDictionary *applicationProcesses(void) {
     if(!listpids||!pidpath)return @{@"error":@"Process inspection unavailable"};
     int pids[2048];int count=listpids(pids,sizeof(pids));
     NSMutableArray *matches=[NSMutableArray array];
-    NSString *prefix=[configuration[@"BundlePath"] stringByAppendingString:@"/"];
+    NSString *prefix=[selectedApp[@"BundlePath"] stringByAppendingString:@"/"];
     for(int i=0;i<count&&i<2048;i++){
         char path[4096]={0};if(pidpath(pids[i],path,sizeof(path))<=0)continue;
         NSString *name=[NSString stringWithUTF8String:path];
         if([name hasPrefix:prefix])[matches addObject:@{@"pid":@(pids[i]),@"executable":name}];
     }
-    return @{@"bundleId":configuration[@"BundleId"],@"processes":matches,@"running":matches.count>0?@YES:@NO};
+    return @{@"bundleId":selectedApp[@"BundleId"],@"processes":matches,@"running":matches.count>0?@YES:@NO};
 }
 
 static int sendAll(int fd, const void *bytes, size_t n) {
@@ -284,15 +286,17 @@ static void *handleClient(void *arg) {
         struct timeval timeout={10,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
         setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
         char raw[16385];size_t used=0;BOOL complete=NO;
-        while(used<sizeof(raw)-1){ssize_t n=recv(fd,raw+used,sizeof(raw)-1-used,0);if(n<=0)break;used+=(size_t)n;raw[used]=0;if(strstr(raw,"\r\n\r\n")){complete=YES;break;}}
+        while(used<sizeof(raw)-1){ssize_t n=recv(fd,raw+used,1,0);if(n<=0)break;used+=(size_t)n;raw[used]=0;if(strstr(raw,"\r\n\r\n")){complete=YES;break;}}
         if(complete){
             NSString *request=[[NSString alloc]initWithBytes:raw length:used encoding:NSUTF8StringEncoding];
             NSArray *lines=[request componentsSeparatedByString:@"\r\n"];
             NSArray *line=[lines.firstObject componentsSeparatedByString:@" "];
-            NSString *auth=nil;BOOL foreign=NO;
+            NSString *auth=nil,*bundle=nil;BOOL foreign=NO;unsigned long long contentLength=0;
             for(NSString *h in lines){
                 if([h.lowercaseString hasPrefix:@"authorization:"])auth=[[h substringFromIndex:14] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-                if([h.lowercaseString hasPrefix:@"origin:"])foreign=YES;
+                if([h.lowercaseString hasPrefix:@"origin:"] || [h.lowercaseString hasPrefix:@"transfer-encoding:"])foreign=YES;
+                if([h.lowercaseString hasPrefix:@"x-iossweet-bundle:"])bundle=[[h substringFromIndex:18] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+                if([h.lowercaseString hasPrefix:@"content-length:"])contentLength=strtoull([[h substringFromIndex:15] UTF8String],NULL,10);
             }
             NSString *expected=[@"Bearer " stringByAppendingString:configuration[@"Token"]];
             if(foreign || !constantEqual(auth,expected)){reply(fd,401,@{@"error":@"Unauthorized"});}
@@ -302,24 +306,44 @@ static void *handleClient(void *arg) {
                     NSString *method=line[0],*path=line[1];NSDictionary *result=nil;
                     if([method isEqual:@"GET"] && [path isEqual:@"/v1/status"])result=status();
                     else if([method isEqual:@"GET"] && [path isEqual:@"/v1/identity"])result=identity();
-                    else if([method isEqual:@"GET"] && [path isEqual:@"/v1/processes"])result=applicationProcesses();
-                    else if([method isEqual:@"GET"] && [path isEqual:@"/v1/staged"])result=stagedApplication();
                     else if([method isEqual:@"GET"] && [path isEqual:@"/v1/operation"])result=operationTrace();
-                    else if(([method isEqual:@"GET"] && [path isEqual:@"/v1/apps"]) ||
-                            ([method isEqual:@"POST"] && ([path isEqual:@"/v1/register"]||[path isEqual:@"/v1/launch"]))){
-                        if(pthread_mutex_trylock(&operationsMutex)!=0)reply(fd,409,@{@"error":@"Another application operation is pending"});
-                        else{@try{
-                            __block NSDictionary *operationResult=nil;
-                            dispatch_sync(dispatch_get_main_queue(), ^{
-                                mach_port_t thread=mach_thread_self();atomic_store(&operationThread,thread);
-                                @try { operationResult=[path isEqual:@"/v1/apps"]?listApplications():[path isEqual:@"/v1/register"]?registerApplication():launchApplication(); }
-                                @catch(NSException *e){operationResult=@{@"error":e.name ?: @"app operation exception"};}
-                                @finally{atomic_store(&operationThread,MACH_PORT_NULL);mach_port_deallocate(mach_task_self(),thread);}
-                            });
-                            result=operationResult;
-                        }
-                             @finally{atomic_store(&operationPhase,"idle");pthread_mutex_unlock(&operationsMutex);}}
-                    }else reply(fd,404,@{@"error":@"Unknown route"});
+                    else {
+                        NSArray *reads=@[@"/v1/apps",@"/v1/processes",@"/v1/staged"];
+                        NSArray *writes=@[@"/v1/register",@"/v1/launch",@"/v2/install",@"/v2/stop"];
+                        BOOL allowed=([method isEqual:@"GET"] && [reads containsObject:path]) ||
+                            ([method isEqual:@"POST"] && [writes containsObject:path]);
+                        if(!allowed)reply(fd,404,@{@"error":@"Unknown route"});
+                        else if(pthread_mutex_trylock(&operationsMutex)!=0)reply(fd,409,@{@"error":@"Another application operation is pending"});
+                        else {@try {
+                            selectedApp=selectApp(bundle ?: configuration[@"BundleId"]);
+                            BOOL installing=[path isEqual:@"/v2/install"];
+                            if(installing){
+                                struct timeval transferTimeout={600,0};
+                                setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&transferTimeout,sizeof(transferTimeout));
+                                setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&transferTimeout,sizeof(transferTimeout));
+                                result=receiveApp(fd,contentLength);
+                            }
+                            if(!result[@"error"]){
+                                if(!selectedApp && ![path isEqual:@"/v1/apps"])result=@{@"error":@"App is not in the managed library"};
+                                else {
+                                    __block NSDictionary *operationResult=nil;
+                                    dispatch_sync(dispatch_get_main_queue(), ^{
+                                        mach_port_t thread=mach_thread_self();atomic_store(&operationThread,thread);
+                                        @try {
+                                            if(installing || [path isEqual:@"/v1/register"])operationResult=registerApplication();
+                                            else if([path isEqual:@"/v1/apps"])operationResult=listApplications();
+                                            else if([path isEqual:@"/v1/processes"])operationResult=applicationProcesses();
+                                            else if([path isEqual:@"/v1/staged"])operationResult=stagedApplication();
+                                            else if([path isEqual:@"/v2/stop"])operationResult=stopSelectedApp();
+                                            else operationResult=launchApplication();
+                                        } @catch(NSException *e){operationResult=@{@"error":e.name ?: @"app operation exception"};}
+                                        @finally{atomic_store(&operationThread,MACH_PORT_NULL);mach_port_deallocate(mach_task_self(),thread);}
+                                    });
+                                    result=operationResult;
+                                }
+                            }
+                        } @finally {selectedApp=nil;atomic_store(&operationPhase,"idle");pthread_mutex_unlock(&operationsMutex);}}
+                    }
                     if(result)reply(fd,result[@"error"]?409:200,result);
                 } @catch(NSException *exception){reply(fd,500,@{@"error":exception.name ?: @"exception"});}
             }

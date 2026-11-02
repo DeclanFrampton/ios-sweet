@@ -20,7 +20,39 @@ def forwarding(qmp_port=4444):
     with socket.socket() as reserved:
         reserved.bind(('127.0.0.1', 0))
         port = reserved.getsockname()[1]
-    with socket.create_connection(('127.0.0.1', qmp_port), 5) as monitor:
+    def command(arguments):
+        # QEMU's TCP QMP accepts one monitor client at a time. Never hold that
+        # connection while a slow guest transfer/registration is in progress:
+        # the framebuffer and touch controls need short QMP sessions too.
+        import time
+        monitor = None
+        for attempt in range(30):
+            try:
+                monitor = socket.create_connection(('127.0.0.1', qmp_port), 2)
+                break
+            except (ConnectionRefusedError, TimeoutError):
+                if attempt == 29:
+                    raise
+                time.sleep(.1)
+        try:
+            return monitor_command(monitor, arguments)
+        finally:
+            monitor.close()
+
+    rule = f'tcp:127.0.0.1:{port}-10.0.2.15:49160'
+    added = command({'command-line': 'hostfwd_add sweetnet ' + rule})
+    if added.strip():
+        raise RuntimeError('QEMU refused temporary local bridge forwarding')
+    try:
+        yield port
+    finally:
+        removed = command({'command-line': f'hostfwd_remove sweetnet tcp:127.0.0.1:{port}'})
+        if any(word in removed.lower() for word in ('error', 'not found', 'could not')):
+            raise RuntimeError('Could not remove temporary bridge forwarding')
+
+
+def monitor_command(monitor, arguments):
+    with monitor:
         monitor.settimeout(8)
         f = monitor.makefile('rwb')
         greeting = json.loads(f.readline())
@@ -43,19 +75,7 @@ def forwarding(qmp_port=4444):
                     return result['return']
 
         call('qmp_capabilities')
-        rule = f'tcp:127.0.0.1:{port}-10.0.2.15:49160'
-        added = call('human-monitor-command', {'command-line': 'hostfwd_add sweetnet ' + rule})
-        if added.strip():
-            raise RuntimeError('QEMU refused temporary local bridge forwarding')
-        try:
-            yield port
-        finally:
-            removed = call('human-monitor-command', {
-                'command-line': f'hostfwd_remove sweetnet tcp:127.0.0.1:{port}'})
-            # HMP returns a non-empty confirmation when removal succeeds.
-            # Do not mask the original HTTP failure with a false cleanup error.
-            if any(word in removed.lower() for word in ('error', 'not found', 'could not')):
-                raise RuntimeError('Could not remove temporary bridge forwarding')
+        return call('human-monitor-command', arguments)
 
 
 def invoke(config, action, qmp_port=4444, timeout=20):

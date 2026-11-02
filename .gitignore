@@ -14,3 +14,7 @@ docker/local-state/
 docker/local-guest/
 docker/local-assets/
 windows-runtime/
+desktop/assets/
+desktop/dist/
+desktop/build/
+*.spec

@@ -27,7 +27,7 @@ import webbrowser
 
 ROOT = Path(__file__).resolve().parent.parent
 TOOL = Path(__file__).resolve().parent
-WIN_RUNTIME = ROOT / 'windows-runtime'
+WIN_RUNTIME = Path(os.environ.get('IOS_SWEET_DATA_ROOT', str(ROOT / 'windows-runtime')))
 WIN_GUEST = WIN_RUNTIME / 'guest'
 WIN_STATE = WIN_RUNTIME / 'state'
 sys.path.insert(0, str(TOOL))
@@ -48,6 +48,13 @@ QEMU_DIR = Path(os.environ.get(
 
 def log(message):
     print(message, flush=True)
+
+
+def python_tool(name):
+    """Frozen Studio dispatches only its three bundled, allowlisted tools."""
+    if getattr(sys, 'frozen', False):
+        return [sys.executable, '--tool', name]
+    return [sys.executable, str(TOOL / name)]
 
 
 @contextmanager
@@ -306,7 +313,7 @@ def prepare(args, state, qemu_bin, qemu_img, require_ram=True):
         raise RuntimeError('Existing native run directory: '+str(run))
     run.mkdir(parents=True)
     qemu_adt = run / 'qemu.adt'
-    adt_cmd = [sys.executable, str(TOOL / 'mkadt.py'),
+    adt_cmd = [*python_tool('mkadt.py'),
                str(qemu_adt), '--qemu', '--highmem',
                '--qemu-cpus='+str(args.cpus)]
     if args.srgb_display:
@@ -316,7 +323,7 @@ def prepare(args, state, qemu_bin, qemu_img, require_ram=True):
     log('NATIVE_QEMU_DISPLAY_GAMUT='+('sRGB_EXPERIMENT' if args.srgb_display else 'P3_ORIGINAL'))
     cmdline = guest_boot_args(args.cpus, args.diagnostics, args.sample_driverkitd)
     payload = run / 'payload.bin'
-    subprocess.run([sys.executable, str(TOOL / 'mkpayload.py'),
+    subprocess.run([*python_tool('mkpayload.py'),
                     str(kernel), str(qemu_adt), str(payload), '--cmdline', cmdline],
                    check=True, timeout=90)
     data = payload.read_bytes()

@@ -1,0 +1,27 @@
+#!/bin/sh
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts /run /tmp /job /target /firmware
+mount -t tmpfs tmpfs /tmp
+mount -t tmpfs tmpfs /run
+for m in virtio_pci virtio_blk hfsplus vfat nls_utf8 nls_cp437 nls_iso8859-1 fuse loop; do modprobe "$m" 2>/dev/null || true; done
+i=0
+while [ ! -b /dev/vdb1 ] && [ "$i" -lt 30 ]; do sleep 1;i=$((i+1));done
+if mount -t vfat -o ro,iocharset=utf8,codepage=437 /dev/vdb1 /job; then
+  echo STUDIO_PREPARER_STARTED
+  python3 /tools/prepare.py
+  result=$?
+else
+  echo 'STUDIO_PREPARER_ERROR: job volume unavailable'
+  /bin/busybox dmesg | /bin/busybox tail -n 20
+  cat /proc/partitions
+  result=1
+fi
+sync
+umount /target 2>/dev/null || true
+umount /job 2>/dev/null || true
+if [ "$result" -eq 0 ]; then echo STUDIO_PREPARER_SUCCESS; else echo STUDIO_PREPARER_FAILED; fi
+poweroff -f
+sleep 10

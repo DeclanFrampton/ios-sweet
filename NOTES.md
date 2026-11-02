@@ -1,5 +1,37 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 2 November 2026 - Studio source-build documentation and publication
+
+- User requested complete build-from-source instructions on the GitHub
+  README. Added the full Windows Studio build guide both inline in README.md
+  and at docs/STUDIO_SOURCE_BUILD.md, with a test that keeps them identical.
+  The source branch remains windows-qemu-virtio; main receives the full guide
+  as a documentation-only homepage update, not a code/firmware merge.
+- Published the previously local Studio source and its required guest/native
+  integration changes so a fresh source checkout contains the referenced
+  app, package builder, installer, preparation appliance and tests. No
+  Windows executable, private IPA, Apple SDK/firmware, local bridge secret,
+  raw/QCOW2 disk or generated build output is staged.
+- Removed the undocumented dependency on a private NovaForge build image
+  from the public recipe: desktop/helper-toolchain.Dockerfile builds Ubuntu
+  plus signed LLVM 23 packages. The SDK remains a separate authorised,
+  read-only mount. Built that image, compiled both ARM64 guest helpers,
+  ad-hoc signed the entitled agent and verified the Mach-O architectures.
+  Outputs for these checks live only under ignored
+  windows-runtime/documentation-check/helpers; live guest assets unchanged.
+- Validation: all 58 Python tests passed; adaptive-poll and pointer/gesture
+  JavaScript suites passed; all 12 PowerShell README examples parsed with
+  zero errors; the manifest Python example compiled; build.py CLI flags and
+  documented source paths were checked; git diff --check passed.
+- The guide separates build-time Docker/SDK/Node/Python requirements from
+  the packaged Windows-native runtime, includes upstream download checks,
+  kernel pinning/rebuild policy, optional dependencies, first-run setup,
+  packaging/checksums, troubleshooting and privacy/rollback boundaries.
+- Status remains explicit: local Studio package and prepared-root app path
+  exist, but no Studio release has been published and complete clean-PC
+  Apple-download/root-preparation/install acceptance is still outstanding.
+  This documentation task did not restart QEMU or modify device disks.
+
 ## 2 November 2026 — supplied IPA installed and rendered in native QEMU
 
 - Built a real ARM64 in-guest development agent and localhost-only host
