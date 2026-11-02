@@ -9,6 +9,9 @@ on:
       - tools/Start-Studio.ps1
       - tools/Studio-Bootstrap.psm1
       - tools/iossweet-native-windows.py
+      - tools/mkadt.py
+      - tools/mkpayload.py
+      - tools/extract-im4p-adt.py
       - tests/**
       - .github/workflows/studio-source-launch.yml
   pull_request:
@@ -45,6 +48,13 @@ jobs:
         run: |
           .\start.cmd -PrepareOnly
           if ($LASTEXITCODE -ne 0) { throw 'Cached bootstrap failed' }
+      - name: Build actual native boot payload without developer firmware files
+        shell: powershell
+        run: |
+          $spec=Get-Content desktop/runtime-lock.json -Raw|ConvertFrom-Json
+          $runtime=Join-Path (Get-Location) ('.studio/runtime/'+$spec.version)
+          & (Join-Path $runtime 'python/python.exe') tests/check_native_boot_payload.py --assets (Join-Path $runtime 'assets') --output '.studio/native-payload-test'
+          if ($LASTEXITCODE -ne 0) { throw 'Fresh-clone mkadt/mkpayload boot pipeline failed' }
       - name: Boot the setup engine without disks or Apple firmware
         shell: powershell
         run: |
@@ -75,4 +85,5 @@ jobs:
             .studio/logs/*.log
             .studio/setup-boot-test/logs/**
             .studio/setup-transport-test/**/logs/**
+            .studio/native-payload-test/*.log
           retention-days: 7

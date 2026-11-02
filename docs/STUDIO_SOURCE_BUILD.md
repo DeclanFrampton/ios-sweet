@@ -285,6 +285,23 @@ package inventory with your build.
 
 ### 9. Create and validate the helper manifest
 
+Before writing the manifest, build the native Windows firmware decoder.
+This maintainer-only step needs an x64 **LLVM-MinGW** compiler on PATH
+(`clang --version` must identify the Windows GNU target). Alternatively
+pass its full path through `-Clang`. End users do not need this compiler;
+the source launcher downloads the verified runtime binary automatically.
+
+```powershell
+.\desktop\build-lzfse.ps1 -OutputDirectory $Assets
+if ($LASTEXITCODE -ne 0) { throw 'Native firmware decoder build failed' }
+```
+
+The script checks out a pinned public LZFSE revision, retains its license
+and provenance, and creates `$Assets\lzfse.exe`. It does not download Apple
+firmware. Studio fetches the 33 KB private iPhone DeviceTree from Apple on
+first setup/start; neither that `.im4p` nor the extracted `.adt` belongs in
+the repository or a public dependency ZIP.
+
 Only create a manifest **after** verifying the upstream downloads and
 successfully compiling/signing the helpers. Generating a hash is not a
 substitute for establishing where a file came from.
@@ -295,7 +312,7 @@ from pathlib import Path
 import hashlib, json, sys
 assets = Path(sys.argv[1])
 names = ('prepare-kernel', 'prepare-initrd.gz', 'iossweet-agent',
-         'iossweet-net-seed', 'kernel.aks-quiet.sweet')
+         'iossweet-net-seed', 'kernel.aks-quiet.sweet', 'lzfse.exe')
 manifest = {}
 for name in names:
     path = assets / name

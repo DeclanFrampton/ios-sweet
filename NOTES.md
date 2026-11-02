@@ -1,5 +1,64 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 2 November 2026 - fresh-clone mkadt startup repair / runtime r3
+
+- User screenshot is again from `C:\Users\decla\Documents\ios-sweet`, not
+  the connected DANHO machine. The traceback stops at `mkadt.py` with
+  `--qemu-srgb-display`. Reproduced locally using the public embedded Python
+  with `SWEET_QEMU_PRODUCT_ADT` pointing to an absent file. Exact error:
+  `Missing iPhone /product capabilities; cannot verify color override`.
+  Developer startup had silently depended on private/untracked
+  `research/ipsw-x/d22ap.adt`; public first-device setup never generated it.
+- Added automatic per-user DeviceTree preparation on first setup and when
+  starting an already-prepared disk. Fetches only the 33719-byte d22ap IM4P
+  from the pinned Apple iOS 16.7.16 IPSW, checks compressed SHA-256
+  `480e8b0888949b4128b7aa2cd254497581c69e1bafa596a760b2fa955a8a6368`,
+  decodes locally and checks 186084-byte ADT SHA-256
+  `9e670987c80493bd69aba7be62e3179c04663324d9249b0973675baac175dbf1`.
+  Stores only privately in boot-assets, records its explicit path/digest in
+  the existing device config, and passes it to mkadt. Does not rebuild an
+  existing disk, drop sRGB validation, change bridge credentials or register
+  a fabricated Apple device. Existing valid cached tree is reused offline.
+- Published immutable runtime `studio-runtime-v0.2.0-r3`: 145729451 bytes,
+  SHA-256 `ec4c1c015ea4d558e91aa4cff5367831268cf26488059d9266de98888c6e313d`,
+  inventory SHA-256
+  `275104c8e6adaba1a0fe751de128022330ce48212b98095526f35e11f4f4a132`.
+  Adds only an open-source native Windows LZFSE decoder, license/build
+  provenance. All 519 inventory files checked: no Apple ADT/IM4P/firmware,
+  guest disk, SDK, IPA or private credentials. Original r2 cache preserved.
+- Decoder source is lzfse/lzfse commit
+  `e634ca58b4821d9f3d560cdc6df5dec02ffc93fd`; native LLVM-MinGW 22.1.7 build
+  SHA-256 `255b3a288739cfbfb989a9d4881c693a36312743ac41bd96945659ca8ce52df8`.
+  Binary stdin/stdout avoids Unicode path conversion in native decoder.
+  Added reproducible maintainer recipe and package/source documentation.
+- Native boot children now save mkadt.log and mkpayload.log and surface the
+  underlying error, not just a truncated CalledProcessError command line.
+  Runtime preflight round-trips synthetic bytes through LZFSE. New CI test
+  executes the complete source-entry/mkadt/mkpayload/RAM-image chain using a
+  synthetic tree and sparse disposable disk with developer research absent.
+  No Apple firmware in CI. Fresh private Apple fetch/hash/cache reuse and
+  native payload tests passed. All 124 Python tests and four JS suites pass.
+  One earlier unchanged HTTP-boundary test saw transient Windows socket
+  reset; full repeat passed, with no weakened security assertions.
+- Live acceptance: baseline QEMU PID 53180 was stopped cleanly for a
+  reversible single-instance test. Clean baseline overlay was copied and
+  SHA-256 verified at windows-runtime/product-tree-fix/baseline-before-test.qcow2.
+  Original config saved in baseline-restore-device.json. Idle Studio GUI
+  was closed, not its data removed. Initially RAM guard refused fresh boot;
+  orderly shutdown of 19 idle reusable MSBuild workers and compiler cache
+  (zero active build invocations) freed RAM to 7.8 GiB. All 39 Docker services
+  remained running. The 6-GiB safety gate was never bypassed.
+- The newly Apple-prepared image at the path in
+  windows-runtime/full-preparation-acceptance.txt now runs as QEMU PID 35424
+  with public-r3 tools. ADT and payload built correctly; authenticated guest
+  agent v7 responds and its initial app library is empty. First screenshot
+  shows Apple boot logo, not yet a verified home screen. A first immediate
+  refresh timed out; subsequent authenticated status/library queries passed.
+  Evidence under windows-runtime/product-tree-fix. Continue first-boot
+  acceptance, then restore the original baseline guest/UI before finishing.
+  Do not claim the screenshot PC was modified or that first boot is complete
+  from an HTTP 200, guest-agent response or boot logo alone.
+
 ## 2 November 2026 - rapid first-device failure / exact-length DMG transport
 
 - User screenshot is from `C:\Users\decla\Documents\ios-sweet`, which is not

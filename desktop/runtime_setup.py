@@ -62,11 +62,12 @@ def asset_paths(resource: Path):
     if not override and not asset.is_dir():asset=resource/'windows-runtime/desktop-build/assets'
     qemu=asset/'qemu'
     if not override and not qemu.is_dir():qemu=resource/'windows-runtime/qemu'
-    required=('prepare-kernel','prepare-initrd.gz','iossweet-agent','iossweet-net-seed','kernel.aks-quiet.sweet')
+    required=('prepare-kernel','prepare-initrd.gz','iossweet-agent','iossweet-net-seed','kernel.aks-quiet.sweet','lzfse.exe')
     manifest=json.loads((asset/'manifest.json').read_text())
     for name in required:
         p=asset/name
-        if not p.is_file() or sha256(p)!=manifest.get(name):raise RuntimeError('Missing or changed setup component: '+name)
+        if not p.is_file() or sha256(p)!=manifest.get(name):
+            raise RuntimeError('Missing or changed setup component: '+name+'. Update with git pull --ff-only and start.cmd; keep your device data.')
     if sha256(asset/'kernel.aks-quiet.sweet')!=QUIET_KERNEL:raise RuntimeError('Unexpected iOS kernel.')
     for exe in ('qemu-system-aarch64.exe','qemu-system-x86_64.exe','qemu-img.exe'):
         if not (qemu/exe).is_file():raise RuntimeError('Native QEMU component missing: '+exe)
@@ -190,6 +191,9 @@ def from_apple(home: Path,resource: Path,report=print):
     with PreparationLog(home,'download',report) as diagnostic:
         diagnostic.stage('Checking preparation components and available storage')
         asset,qemu=asset_paths(resource)
+        import product_tree
+        diagnostic.stage('Preparing the private iPhone product device tree')
+        product=product_tree.ensure(home,resource,diagnostic)
         if shutil.disk_usage(home).free<35*1024**3:raise RuntimeError('Downloading and preparing iOS needs at least 35 GB free.')
         root=directory(home);cache=home/'firmware-cache';cache.mkdir(exist_ok=True)
         sys.path.insert(0,str(resource/'tools'))
@@ -201,4 +205,6 @@ def from_apple(home: Path,resource: Path,report=print):
             firmware={name:apple.extract_member(dest,entries,wanted[name]) for name in ('os','sysos','appos')}
         monitor([str(qemu/'qemu-img.exe'),'create','-f','raw',str(root/'ios.raw'),'16G'],
             diagnostic,'Allocating the private iOS disk',timeout=120)
-        return prepare(root,asset,qemu,'full',report,firmware,diagnostic=diagnostic,resource=resource)
+        result=prepare(root,asset,qemu,'full',report,firmware,diagnostic=diagnostic,resource=resource)
+        result.update(productAdt=str(product),productAdtSha256=product_tree.ADT_SHA256)
+        return result

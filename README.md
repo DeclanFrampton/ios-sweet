@@ -38,6 +38,13 @@ Apple, not bundled in GitHub. Then choose an IPA and click **Install & launch**.
 Your private device and apps live in `.studio/data/`; keep that folder when
 updating with `git pull`.
 
+If an already prepared device fails on **Start iPhone** in `mkadt.py`, update
+with `git pull --ff-only`, close Studio and run `start.cmd`, then press
+**Start iPhone again**. The missing private product device tree is now fetched
+and verified automatically; **do not create the disk again**. Runtime r3
+includes its native decoder, not Apple firmware. See
+[boot-file troubleshooting](docs/RUN_FROM_SOURCE.md#mkadtpy-fails-when-starting-an-already-prepared-iphone).
+
 **Requirements:** Windows 10/11 x64 (Intel/AMD, Windows build 19041+), internet
 for initial downloads, 35 GB free storage for device creation, and 6 GiB free
 RAM before starting the emulated iPhone. The desktop bootstrap does not itself
@@ -107,11 +114,10 @@ experimental development environment, not a secure personal iPhone.
 - **Rebuild all helper binaries:** use [the advanced source-build instructions below](#build-ios-sweet-studio-from-source).
 - **Reading just the guide:** [standalone build guide](https://github.com/danhol86/ios-sweet/blob/main/docs/STUDIO_SOURCE_BUILD.md).
 - **Existing development guest:** [native Windows notes](https://github.com/danhol86/ios-sweet/blob/main/docs/NATIVE_WINDOWS.md) and [guest installation bridge](https://github.com/danhol86/ios-sweet/blob/main/tools/guest-install/README.md).
-- **Dependencies:** the launcher automatically downloads its exact [runtime pack](https://github.com/danhol86/ios-sweet/releases/tag/studio-runtime-v0.2.0-r2). You do not download an installer or the older Docker preview.
+- **Dependencies:** the launcher automatically downloads its exact [runtime pack](https://github.com/danhol86/ios-sweet/releases/tag/studio-runtime-v0.2.0-r3). You do not download an installer or the older Docker preview.
 - **Original physical-phone port:** preserved in the historical section at the bottom. Its flashing instructions do not apply to desktop Studio.
 
 <!-- STUDIO_SOURCE_BUILD_BEGIN -->
-
 ## Build iOS Sweet Studio from source
 
 These are the **Windows desktop application's** build instructions, not the
@@ -399,6 +405,23 @@ package inventory with your build.
 
 ### 9. Create and validate the helper manifest
 
+Before writing the manifest, build the native Windows firmware decoder.
+This maintainer-only step needs an x64 **LLVM-MinGW** compiler on PATH
+(`clang --version` must identify the Windows GNU target). Alternatively
+pass its full path through `-Clang`. End users do not need this compiler;
+the source launcher downloads the verified runtime binary automatically.
+
+```powershell
+.\desktop\build-lzfse.ps1 -OutputDirectory $Assets
+if ($LASTEXITCODE -ne 0) { throw 'Native firmware decoder build failed' }
+```
+
+The script checks out a pinned public LZFSE revision, retains its license
+and provenance, and creates `$Assets\lzfse.exe`. It does not download Apple
+firmware. Studio fetches the 33 KB private iPhone DeviceTree from Apple on
+first setup/start; neither that `.im4p` nor the extracted `.adt` belongs in
+the repository or a public dependency ZIP.
+
 Only create a manifest **after** verifying the upstream downloads and
 successfully compiling/signing the helpers. Generating a hash is not a
 substitute for establishing where a file came from.
@@ -409,7 +432,7 @@ from pathlib import Path
 import hashlib, json, sys
 assets = Path(sys.argv[1])
 names = ('prepare-kernel', 'prepare-initrd.gz', 'iossweet-agent',
-         'iossweet-net-seed', 'kernel.aks-quiet.sweet')
+         'iossweet-net-seed', 'kernel.aks-quiet.sweet', 'lzfse.exe')
 manifest = {}
 for name in names:
     path = assets / name
@@ -643,7 +666,6 @@ registered, started as a process, or visibly rendered and interacted with.
 
 The root README includes this guide in full. Update both copies together; the
 documentation check verifies that the README's source-build block matches.
-
 <!-- STUDIO_SOURCE_BUILD_END -->
 
 ---

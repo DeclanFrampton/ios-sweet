@@ -57,7 +57,8 @@ def d22ap_product(path=D22AP_ADT):
     if not os.path.exists(path):
         print(f'warning: {path} missing, no /product node', file=sys.stderr)
         return None
-    root, _ = adt.parse(open(path, 'rb').read())
+    with open(path, 'rb') as source:
+        root, _ = adt.parse(source.read())
     for c in root.children:
         if dict((k, v) for k, f, v in c.props).get('name') == b'product\0':
             return [(k, v) for k, f, v in c.props if not f and k not in ('name', 'AAPL,phandle')]
@@ -75,7 +76,7 @@ def node(name, props=(), children=()):
     return n
 
 
-def build(seed=None, qemu=False, highmem=False, qemu_cpus=1, qemu_srgb_display=False):
+def build(seed=None, qemu=False, highmem=False, qemu_cpus=1, qemu_srgb_display=False, product_adt=None):
     """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ (tools/qemu-sweet.py)."""
     phys_base, mem_size = (HIGH_PHYS_BASE, HIGH_MEM_SIZE) if highmem else (PHYS_BASE, MEM_SIZE)
     # Carve the panic log off the top so the kernel never allocates over it.
@@ -224,12 +225,13 @@ def build(seed=None, qemu=False, highmem=False, qemu_cpus=1, qemu_srgb_display=F
         ('opposed-power-vol-buttons', u32(1)),
     ])
 
-    product_props = d22ap_product()
+    product_props = d22ap_product(product_adt or D22AP_ADT)
     if qemu_srgb_display:
         if not qemu:
             raise ValueError('Software-only sRGB display mode is supported only by QEMU')
         if not product_props:
-            raise ValueError('Missing iPhone /product capabilities; cannot verify color override')
+            raise ValueError('Missing iPhone /product capabilities; cannot verify color override. '
+                             'Studio must prepare the private device tree and pass --product-adt before boot.')
         old = next((v for k,v in product_props if k == 'artwork-display-gamut'),None)
         if old != cstr('P3'):
             raise ValueError('Unexpected original /product artwork-display-gamut: '+repr(old))
@@ -265,6 +267,7 @@ if __name__ == '__main__':
                       if arg.startswith('--qemu-cpus=')), 1)
     root = build(qemu='--qemu' in sys.argv, highmem='--highmem' in sys.argv,
                  qemu_cpus=qemu_cpus,
+                 product_adt=next((arg.split('=',1)[1] for arg in sys.argv if arg.startswith('--product-adt=')),None),
                  qemu_srgb_display='--qemu-srgb-display' in sys.argv)
     blob = adt.serialize(root)
     open(sys.argv[1], 'wb').write(blob)

@@ -19,7 +19,7 @@ ROOT=Path(__file__).resolve().parents[1]
 PYTHON_VERSION='3.14.10'
 PYTHON_SHA256='90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 PYTHON_URL=f'https://www.python.org/ftp/python/{PYTHON_VERSION}/python-{PYTHON_VERSION}-embed-amd64.zip'
-HELPERS=('prepare-kernel','prepare-initrd.gz','iossweet-agent','iossweet-net-seed','kernel.aks-quiet.sweet')
+HELPERS=('prepare-kernel','prepare-initrd.gz','iossweet-agent','iossweet-net-seed','kernel.aks-quiet.sweet','lzfse.exe')
 QEMU_FILES=('qemu-system-aarch64.exe','qemu-system-x86_64.exe','qemu-img.exe','COPYING','COPYING.LIB','README.rst')
 BIOS=('bios-256k.bin','bios.bin','bios-microvm.bin','kvmvapic.bin','vgabios-stdvga.bin',
       'vgabios-virtio.bin','efi-e1000e.rom','efi-e1000.rom','pxe-e1000.rom','pxe-e1000e.rom')
@@ -65,7 +65,7 @@ def main():
     p.add_argument('--qemu',required=True,type=Path)
     p.add_argument('--signer-zip',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path)
-    p.add_argument('--version',default='studio-runtime-v0.2.0-r2')
+    p.add_argument('--version',default='studio-runtime-v0.2.0-r3')
     a=p.parse_args()
     import re
     if not re.fullmatch(r'studio-runtime-v[0-9A-Za-z._-]+',a.version):p.error('Invalid immutable release tag')
@@ -137,7 +137,7 @@ def main():
     inventory={}
     for f in sorted(staging.rglob('*')):
         if not f.is_file():continue
-        if f.suffix.lower() in ('.ipa','.raw','.qcow2','.dmg','.p8','.p12','.mobileprovision','.mobileconfig') or f.name in ('bridge.json','bridge.plist','device.json','host-bridge.json'):
+        if f.suffix.lower() in ('.ipa','.raw','.qcow2','.dmg','.p8','.p12','.mobileprovision','.mobileconfig','.adt','.im4p','.ipsw') or f.name in ('bridge.json','bridge.plist','device.json','host-bridge.json'):
             raise ValueError('Private artifact must never be published: '+f.name)
         inventory[f.relative_to(staging).as_posix()]=digest(f)
     inventory_path=staging/'runtime-manifest.json'

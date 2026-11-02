@@ -13,7 +13,7 @@ import sys
 
 
 def tlv(blob, offset):
-    if offset >= len(blob):
+    if offset < 0 or offset + 2 > len(blob):
         raise ValueError('Incomplete IM4P DER item')
     tag = blob[offset]
     offset += 1
@@ -21,7 +21,7 @@ def tlv(blob, offset):
     offset += 1
     if length & 0x80:
         count = length & 0x7f
-        if count == 0 or count > 4:
+        if count == 0 or count > 4 or offset + count > len(blob):
             raise ValueError('Bad DER length prefix')
         length = int.from_bytes(blob[offset:offset + count], 'big')
         offset += count
@@ -32,6 +32,8 @@ def tlv(blob, offset):
 
 
 def extract(path, destination, lzfse):
+    if not 16 <= path.stat().st_size <= 1024*1024:
+        raise ValueError('Unexpected DeviceTree IM4P size')
     blob = path.read_bytes()
     tag, outer, end = tlv(blob, 0)
     if tag != 0x30 or end != len(blob):
@@ -44,33 +46,38 @@ def extract(path, destination, lzfse):
     if len(parts) != 4 or parts[0] != (0x16, b'IM4P') or (
             parts[1] != (0x16, b'dtre')) or parts[3][0] != 0x04:
         raise ValueError('Not an Apple DeviceTree (dtre) IM4P')
+    while offset < len(outer):
+        t, _extra, offset = tlv(outer, offset)
+        if t == 0x04:
+            raise ValueError('Encrypted DeviceTree payloads are not supported')
     payload = parts[3][1]
     if not payload.startswith(b'bvx2'):
         raise ValueError('Unsupported DeviceTree compression; expected LZFSE bvx2')
     if destination.exists():
         raise FileExistsError('Refusing to overwrite DeviceTree')
-    compressed = destination.with_suffix(destination.suffix + '.lzfse')
-    if compressed.exists():
-        raise FileExistsError('Existing unverified compressed payload')
-    compressed.write_bytes(payload)
+    created=False
     try:
-        subprocess.run([lzfse, '-decode', '-i', str(compressed),
-                        '-o', str(destination)], check=True)
-        if destination.stat().st_size < 16384:
-            raise ValueError('Decompressed Apple DeviceTree too small')
+        # Binary pipes also support Windows usernames containing Unicode; the
+        # decoder never has to open a narrow-character filesystem path.
+        result = subprocess.run([lzfse, '-decode'], input=payload,
+                                capture_output=True, check=True, timeout=60,
+                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        if not 16384 <= len(result.stdout) <= 1024*1024:
+            raise ValueError('Decompressed Apple DeviceTree has unexpected size')
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import adt
-        root, _ = adt.parse(destination.read_bytes())
+        root, _ = adt.parse(result.stdout)
         product = [n for n in root.children if any(
             name == 'name' and value == b'product\0'
             for name, _flags, value in n.props)]
         if not product:
             raise ValueError('Missing iPhone X /product node')
+        with destination.open('xb') as out:
+            created=True
+            out.write(result.stdout)
     except BaseException:
-        destination.unlink(missing_ok=True)
+        if created:destination.unlink(missing_ok=True)
         raise
-    finally:
-        compressed.unlink(missing_ok=True)
     print(f'VERIFIED_D22AP_ADT={destination} BYTES={destination.stat().st_size}',
           flush=True)
 

@@ -21,7 +21,7 @@ from bundles import sha256
 QEMU_FILES=('qemu-system-aarch64.exe','qemu-system-x86_64.exe','qemu-img.exe','COPYING','COPYING.LIB','README.rst')
 BIOS=('bios-256k.bin','bios.bin','bios-microvm.bin','kvmvapic.bin','vgabios-stdvga.bin','vgabios-virtio.bin','efi-e1000e.rom','efi-e1000.rom','pxe-e1000.rom','pxe-e1000e.rom')
 REQUIRED_BOOT=('bios-256k.bin','linuxboot_dma.bin','multiboot_dma.bin','pvh.bin')
-ASSETS=('prepare-kernel','prepare-initrd.gz','iossweet-agent','iossweet-net-seed','kernel.aks-quiet.sweet')
+ASSETS=('prepare-kernel','prepare-initrd.gz','iossweet-agent','iossweet-net-seed','kernel.aks-quiet.sweet','lzfse.exe')
 
 
 def main():
@@ -69,7 +69,7 @@ def main():
     inventory={str(f.relative_to(staging)).replace('\\','/'):sha256(f) for f in staging.rglob('*') if f.is_file()}
     (staging/'runtime-sha256.json').write_text(json.dumps(inventory,indent=2))
     # This staging tree is constructed from an explicit source/asset allowlist.
-    forbidden=('.ipa','.raw','.qcow2','.dmg','.p8','.p12','.mobileprovision')
+    forbidden=('.ipa','.raw','.qcow2','.dmg','.p8','.p12','.mobileprovision','.adt','.im4p','.ipsw')
     for f in staging.rglob('*'):
         if f.is_file() and (f.suffix.lower() in forbidden or f.name in ('bridge.json','device.json','host-bridge.json')):
             raise RuntimeError('Private media exclusion failed: '+f.name)

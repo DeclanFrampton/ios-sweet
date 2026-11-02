@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "platform": "windows-x64",
-  "version": "studio-runtime-v0.2.0-r2",
+  "version": "studio-runtime-v0.2.0-r3",
   "pythonVersion": "3.14.10",
-  "archiveUrl": "https://github.com/danhol86/ios-sweet/releases/download/studio-runtime-v0.2.0-r2/studio-runtime-v0.2.0-r2-windows-x64.zip",
-  "archiveBytes": 142487468,
-  "archiveSha256": "f5e1cabd84e487c28f9e41336477f0d8a2cfd8da66d5715e14828bd2f9bee9e4",
-  "inventorySha256": "64bb5f8a3316c8118c6a46308a03f614b4bede28bcafd6c1a4ea8bd6a69dc682"
+  "archiveUrl": "https://github.com/danhol86/ios-sweet/releases/download/studio-runtime-v0.2.0-r3/studio-runtime-v0.2.0-r3-windows-x64.zip",
+  "archiveBytes": 145729451,
+  "archiveSha256": "ec4c1c015ea4d558e91aa4cff5367831268cf26488059d9266de98888c6e313d",
+  "inventorySha256": "275104c8e6adaba1a0fe751de128022330ce48212b98095526f35e11f4f4a132"
 }

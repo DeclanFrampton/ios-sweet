@@ -220,9 +220,14 @@ class Studio:
             for name in ('disk','overlay','kernel','bridgeConfig'):
                 if not Path(c[name]).is_file():raise RuntimeError('Missing device file: '+name)
             if bundles.sha256(Path(c['kernel']))!=c['kernelSha256']:raise RuntimeError('Kernel SHA-256 mismatch.')
+            import product_tree
+            tree=product_tree.ensure(self.home,RESOURCE,self.progress,existing=c.get('productAdt'))
+            c={**c,'productAdt':str(tree),'productAdtSha256':product_tree.ADT_SHA256}
+            self.config=c;self.save()
             env=dict(os.environ,IOS_SWEET_QEMU_DIR=c['qemu'],IOS_SWEET_DATA_ROOT=str(self.home))
             cmd=tool_command('iossweet-native-windows.py','--kernel',c['kernel'],'--kernel-sha256',c['kernelSha256'],
                 '--disk',c['disk'],'--overlay',c['overlay'],'--state',c['state'],'--cpus','2','--srgb-display','--no-browser',
+                '--product-adt',c['productAdt'],'--product-adt-sha256',c['productAdtSha256'],
                 '--port',str(c.get('viewerPort',8108)),'--qmp-port',str(c.get('qmpPort',4444)))
             out=self.home/'logs/native.log';err=self.home/'logs/native-error.log'
             with out.open('w') as fo,err.open('w') as fe:

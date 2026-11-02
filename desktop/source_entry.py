@@ -38,6 +38,7 @@ def check_runtime():
     import runtime_setup
     import studio
     import adt
+    import product_tree
     clr.AddReference('System.Windows.Forms')
     asset, qemu = runtime_setup.asset_paths(ROOT)
     signer = asset / 'rcodesign.exe'
@@ -48,6 +49,14 @@ def check_runtime():
                                 timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
         if result.returncode:
             raise RuntimeError('Runtime component cannot start: ' + executable.name)
+    # Version banners cannot prove the new decoder actually handles binary
+    # pipes on a fresh Windows PC; round-trip public synthetic bytes only.
+    sample=b'Studio native decoder preflight\0\xff'*128
+    compressed=subprocess.run([str(asset/'lzfse.exe'),'-encode'],input=sample,
+        capture_output=True,check=True,timeout=15,creationflags=subprocess.CREATE_NO_WINDOW).stdout
+    decoded=subprocess.run([str(asset/'lzfse.exe'),'-decode'],input=compressed,
+        capture_output=True,check=True,timeout=15,creationflags=subprocess.CREATE_NO_WINDOW).stdout
+    if decoded!=sample:raise RuntimeError('Native firmware decoder failed its binary round-trip check.')
     for name in ('studio.py','bundles.py','runtime_setup.py'):
         compile((ROOT/'desktop'/name).read_text(encoding='utf-8'), name, 'exec')
     print(json.dumps({'status':'ready', 'python':sys.version.split()[0],

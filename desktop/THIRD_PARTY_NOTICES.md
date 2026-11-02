@@ -8,6 +8,15 @@ user directly from Apple or imported from the user's local prepared image.
 
 ## Open-source components
 
+* LZFSE native Windows decoder: https://github.com/lzfse/lzfse at
+  `e634ca58b4821d9f3d560cdc6df5dec02ffc93fd`, BSD 3-Clause. Original license
+  and build provenance are included in `assets/licenses/lzfse-LICENSE`
+  and `lzfse-build.json`. The public r3 binary was built with LLVM-MinGW
+  22.1.7, `-O2 -DNDEBUG -static -Wl,--no-insert-timestamp`; SHA-256
+  `255b3a288739cfbfb989a9d4881c693a36312743ac41bd96945659ca8ce52df8`.
+  `desktop/build-lzfse.ps1` rebuilds it from that pinned source; normal
+  users automatically receive the verified binary through `start.cmd`.
+
 * iOS Sweet and the patched XNU kernel: see the repository LICENSE,
   `xnu/patches/`, `.github/workflows/xnu.yml`, and Apple's published XNU source.
   Kernel SHA-256 is pinned in `runtime_setup.py` and the packaged manifest.

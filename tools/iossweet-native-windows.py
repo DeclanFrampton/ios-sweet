@@ -297,6 +297,26 @@ def stop_native(state):
     log('NATIVE_QEMU_GRACEFUL_SHUTDOWN_REQUESTED')
 
 
+def run_boot_tool(command, run, name, timeout):
+    """Keep the child's actual diagnosis, not just CalledProcessError argv."""
+    path=run/(name+'.log')
+    try:
+        result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            timeout=timeout,env=dict(os.environ,PYTHONIOENCODING='utf-8'),
+            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    except subprocess.TimeoutExpired as e:
+        output=(e.stdout or b'').decode('utf-8',errors='replace')
+        path.write_text(output,encoding='utf-8')
+        raise RuntimeError(name+' timed out after '+str(timeout)+'s. Full log: '+str(path)) from None
+    text=result.stdout.decode('utf-8',errors='replace')
+    path.write_text(text,encoding='utf-8')
+    if result.returncode:
+        lines=[line.strip() for line in text.splitlines() if line.strip()]
+        cause=lines[-1] if lines else 'No diagnostic output from the boot tool.'
+        raise RuntimeError(name+' failed (exit '+str(result.returncode)+'): '+cause[:800]+'. Full log: '+str(path))
+    for line in text.splitlines():log(line)
+
+
 def prepare(args, state, qemu_bin, qemu_img, require_ram=True):
     kernel = validate_file(args.kernel, 'Kernel')
     disk = validate_file(args.disk, 'Apple iOS root disk')
@@ -310,6 +330,16 @@ def prepare(args, state, qemu_bin, qemu_img, require_ram=True):
         digest = hashlib.sha256(kernel.read_bytes()).hexdigest()
         if digest.lower() != args.kernel_sha256.lower():
             raise RuntimeError('Kernel checksum mismatch: refusing boot')
+    product=getattr(args,'product_adt',None)
+    if product:
+        product=validate_file(product,'Private iPhone product device tree')
+        if not 16384<=product.stat().st_size<=1024*1024:
+            raise ValueError('Private iPhone device tree has an unexpected size')
+        expected=getattr(args,'product_adt_sha256',None)
+        if expected:
+            import hashlib
+            if hashlib.sha256(product.read_bytes()).hexdigest()!=expected.lower():
+                raise ValueError('Private iPhone device-tree checksum mismatch; no guest was started')
     run = state / ('windows-qemu-' + datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S'))
     if run.exists():
         raise RuntimeError('Existing native run directory: '+str(run))
@@ -320,14 +350,13 @@ def prepare(args, state, qemu_bin, qemu_img, require_ram=True):
                '--qemu-cpus='+str(args.cpus)]
     if args.srgb_display:
         adt_cmd.append('--qemu-srgb-display')
-    subprocess.run(adt_cmd,
-                   check=True, timeout=60)
+    if product:adt_cmd.append('--product-adt='+str(product))
+    run_boot_tool(adt_cmd,run,'mkadt',60)
     log('NATIVE_QEMU_DISPLAY_GAMUT='+('sRGB_EXPERIMENT' if args.srgb_display else 'P3_ORIGINAL'))
     cmdline = guest_boot_args(args.cpus, args.diagnostics, args.sample_driverkitd)
     payload = run / 'payload.bin'
-    subprocess.run([*python_tool('mkpayload.py'),
-                    str(kernel), str(qemu_adt), str(payload), '--cmdline', cmdline],
-                   check=True, timeout=90)
+    run_boot_tool([*python_tool('mkpayload.py'),
+                    str(kernel), str(qemu_adt), str(payload), '--cmdline', cmdline],run,'mkpayload',90)
     data = payload.read_bytes()
     phys, image, ba_pa, entry = qemu.build_image(data)
     (run / 'ram.bin').write_bytes(image)
@@ -477,6 +506,8 @@ def main():
     parser.add_argument('--overlay', type=Path, default=WIN_STATE / 'ios.qcow2')
     parser.add_argument('--state', type=Path, default=WIN_STATE)
     parser.add_argument('--kernel-sha256', default='85039335d05d335d1f9b33f7c8131d274477c50020915ff0335b42428abe998a')
+    parser.add_argument('--product-adt',type=Path,help='Explicit private iPhone product device tree prepared by Studio')
+    parser.add_argument('--product-adt-sha256',help='Expected SHA-256 of the private product device tree')
     parser.add_argument('--port', type=int, default=8108)
     parser.add_argument('--qmp-port', type=int, default=4444)
     parser.add_argument('--cpus', type=int, default=1, choices=(1, 2),

@@ -151,6 +151,34 @@ SHA-256 values were unchanged afterwards. The resulting image has not yet
 been booted as a new iOS VM, so this proves preparation, not first-boot or
 IPA-launch acceptance for that particular image.
 
+## `mkadt.py` fails when starting an already prepared iPhone
+
+Close Studio, run `git pull --ff-only`, then `start.cmd`, and press **Start
+iPhone**. Do **not** create the device again or delete its disk/cache.
+
+Earlier startup relied on an untracked developer-only `d22ap.adt` file.
+On a fresh clone this left the QEMU product capabilities missing and
+`--qemu-srgb-display` caused `mkadt.py` to exit before the emulator started.
+Studio now obtains the small DeviceTree component directly from the pinned
+Apple IPSW, verifies both compressed and extracted SHA-256 values, stores it
+privately under `boot-assets/`, and passes its exact path/digest to the boot
+builder. Existing prepared devices are repaired on **Start iPhone**, without
+changing their root disk, overlay, bridge token or installed apps.
+
+The runtime **r3** download includes a source-built native Windows LZFSE
+decoder, not Apple's device tree. No compiler, Docker, manual file copying
+or Apple signing account is needed by the user. After the first verified
+download, the private tree is reused offline. A changed cached file is
+rejected rather than silently overwritten. Boot-tool failures now retain
+the underlying exception and point to `mkadt.log` or `mkpayload.log` inside
+that native run folder.
+
+CI additionally runs the full `mkadt -> mkpayload -> RAM image` chain with
+synthetic product properties, a sparse disposable disk, and the developer
+research path deliberately unavailable. This test does not boot iOS or
+redistribute Apple firmware; real-device first-boot testing is recorded
+separately.
+
 ## Where things go
 
 | Location inside the clone | Contents |
