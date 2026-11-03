@@ -1423,3 +1423,10 @@ What it took today (in order): 0058 HID services (Apple IOHIDFamily-1915 user cl
   XNU kernel and D22AP device tree; the file-picker prompts for them.
   Do not commit any proprietary Apple userland, private captures,
   device IDs, or credentials.
+
+## 2026-11-03: 16 KiB GPU prototype and snapshot recovery
+
+- Isolated Windows Reims experiment in `.studio/experiments/gpu-path-audit-20261103/reims-windows-16k`, local branch `feature/arm64-guest-pages-experiment`, commit `2046067`, adds an opt-in fixed 16 KiB guest-page feature. It is a per-DLL setting, not mixed per-device support. See the ignored `README-16k.md` for pinned dependencies, fixtures, commands and logs.
+- On the NVIDIA RTX 4070 Ti, synthetic normal and last-page fixtures returned all 8,192 expected bytes. Invalid 12 KiB length and out-of-range start were rejected without a frame. Dynarmic generated 2,048 pixel stores and seven MMIO writes; Reims/metal2vulkan produced an exact 8,192-byte GPU readback. Focused geometry test: 1 passed, 2,301 filtered; full suite not run. The build retains MSVCRTD linker warning LNK4098. These results do not demonstrate iOS GPU acceleration or an iOS boot on this platform.
+- The 19:58 `gpu-build-20261103-195831` saved snapshot restored to an iOS ticket-spinlock kernel panic. The cause and timing are not established. Preserved that overlay and panic frame under `.studio/experiments/ios-gpu-test-restore-20261103`. Recovered the earlier `memory-release-20261103-192108` snapshot from an independently hash-verified copy; its Settings screen was observed at the local viewer. Changes after the earlier snapshot may be missing. Do not assume a listed snapshot is usable until its display is inspected.
+- Windows pagefile explicitly configured on C: with 40,968 MiB initial and 65,536 MiB maximum, replacing automatic management; Windows currently reports the earlier allocation and may require restart to apply. No restart performed.
