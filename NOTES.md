@@ -2,6 +2,16 @@
 
 ## 3 November 2026 - viewer refresh and GPU investigation
 
+- Native Windows Reims virtual-GPU standalone test passed on RTX 4070 Ti:
+  pinned tqmane/reims-vgpu `8f316b5f21908ddeb1e454ce50356ed6e1d2f6cf` and
+  metal2vulkan `7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb` accepted a
+  synthetic 64x32 BGRA EFI framebuffer through its MMIO/C API, produced Vulkan
+  present-shader work, and returned all 8192 bytes unchanged (22 guest presents,
+  17 host encodes; one test). Build succeeded with LNK4098 CRT conflict warning;
+  inspect before production use. Evidence and pinned dependencies remain in
+  `.studio/experiments/gpu-path-audit-20261103/`. This is synthetic GPU
+  presentation, not iOS Metal execution or an integrated guest GPU. The SWEET
+  guest uses a different CPU framebuffer protocol and lacks a Reims PVG driver.
 - Combined the pinned standalone Dynarmic A64 JIT with the native Vulkan
   external-host-memory test in one isolated Windows process. The RTX 4070 Ti
   filled a 64 KiB host allocation, then after the Vulkan import was released
