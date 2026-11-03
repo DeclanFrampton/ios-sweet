@@ -1,5 +1,36 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 3 November 2026 - isolated startup and warm-resume experiments
+
+- A disposable 128 MiB ARM VM with the bundled QEMU and the production
+  CPU/GIC/virtio device types restored running CPU registers, RAM, and a
+  paired disk snapshot across a new process. This is synthetic evidence.
+- On this Windows host, an isolated copy of a private Studio overlay booted
+  until guest-agent v7 responded. QEMU `savevm` took 9.95 seconds; the image
+  passed `qemu-img check` after stopping. A new QEMU process using `-loadvm`
+  returned authenticated agent status in 6.86 seconds, and app listing also
+  responded. The screen showed the Apple logo; no interactive lock screen,
+  app launch, clock, or network acceptance was established. Snapshot state
+  was about 2.2 GiB and timing is one sample, not a product guarantee.
+- The original device overlay was copied only after its VM stopped and the
+  copy's SHA-256 matched. The original overlay remains separate. Experiment
+  data is private and ignored under `.studio/experiments/`. A separate
+  one-core boot of another copied overlay reached the Apple logo; three
+  SpringBoard main-thread samples showed the same wait and no guest-agent
+  response was established during the bounded test. Its console was saved
+  and the guest stopped. This does not establish the cause of the wait.
+- The x86 preparation appliance logging self-test passed in a disposable VM:
+  WHPX 4.29 seconds versus TCG 11.98 seconds. A synthetic HFSX format, 1200
+  file rsync, SHA-256 and read-only fsck fixture passed both (3.09 seconds
+  WHPX versus 18.52 seconds TCG total). These are small single-run fixtures,
+  not real firmware preparation benchmarks. The WHPX run logged an ignored
+  interrupt-vector warning; no production accelerator change was made.
+- Next: establish a stable interactive iOS screen on the isolated copy, then
+  repeat snapshot/resume with interaction, agent, time, network and app checks.
+  A production feature needs disk/RAM pairing, version and configuration
+  pinning, stale-snapshot rejection, crash recovery and fallback. Keep the
+  6 GiB free-RAM gate and original device data intact.
+
 ## 2 November 2026 - fresh-clone mkadt startup repair / runtime r3
 
 - User screenshot is again from `C:\Users\decla\Documents\ios-sweet`, not
