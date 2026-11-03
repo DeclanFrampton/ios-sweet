@@ -27,6 +27,13 @@
   reims-vgpu/metal2vulkan on native Linux; this iOS 16 guest uses a CPU-backed
   framebuffer and does not expose that guest driver. Dynarmic is an independent
   ARM64 CPU execution candidate, not a complete iOS system or graphics bridge.
+- After memory was freed, a standalone Windows Dynarmic A64-only build at commit
+  `a46601580d5512d324104f985b5f0209dc980ddc` passed a synthetic ARM64 JIT
+  arithmetic/store/SVC test (`x0=42`, memory value 42, one SVC), twice. The
+  isolated build uses `XBYAK_CPU_CACHE=0` for the installed Windows SDK and
+  disables interpreter fallback in the test. Source, exact dependency pins,
+  build log and result remain private under `.studio/experiments/dynarmic-20261103/`.
+  This is neither an iOS boot nor application, GPU or performance validation.
 
 ## 3 November 2026 - isolated startup and warm-resume experiments
 
