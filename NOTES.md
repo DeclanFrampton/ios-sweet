@@ -2,6 +2,22 @@
 
 ## 3 November 2026 - viewer refresh and GPU investigation
 
+- The saved `memory-release-20261103-192108` snapshot was copied with an
+  exact SHA-256 match and the copied overlay passed `qemu-img check`. The
+  existing native runner started the copy, paused, loaded that snapshot in
+  11.87 seconds, and resumed. The captured display showed the previously open
+  Settings screen. Viewer: localhost 8109; QMP 4445; guest PID 48320 at the
+  time of validation. The original snapshot overlay was not changed. This
+  restored real iOS guest still renders on the CPU; free host RAM fell below
+  2 GiB, so avoid parallel heavy builds. Actual touch after restore and app
+  use have not yet been reverified; do not claim GPU-backed iOS.
+- A no-QEMU synthetic integration joined the pinned Dynarmic JIT to Reims:
+  ARM64 code performed 2048 framebuffer stores and seven virtual-GPU MMIO
+  writes, then SVC. The Windows Reims/metal2vulkan path selected the RTX 4070
+  Ti, issued Vulkan presentation shader work and returned an exact 8192-byte
+  framebuffer; repeated run passed. Evidence and code remain private under
+  `.studio/experiments/gpu-path-audit-20261103/`. This is a synthetic CPU
+  framebuffer presented by the GPU, not an iOS Metal or graphics-stack test.
 - Native Windows Reims virtual-GPU standalone test passed on RTX 4070 Ti:
   pinned tqmane/reims-vgpu `8f316b5f21908ddeb1e454ce50356ed6e1d2f6cf` and
   metal2vulkan `7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb` accepted a
