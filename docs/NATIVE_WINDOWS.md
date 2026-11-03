@@ -1,5 +1,17 @@
 # Native Windows QEMU backend (experimental)
 
+## Active viewer refresh (3 November 2026)
+
+The standalone viewer waits 280 ms between completed requests while pixels
+change or the user is interacting. Idle and hidden-tab throttling is unchanged.
+This matches the existing 280 ms shared-frame cache and reduces the earlier
+350 ms active delay without restarting the guest; reload the viewer page to
+pick it up. On one live, mostly unchanged framebuffer, eight requests per
+setting averaged 394.8 ms between request starts at the old delay and 318.4 ms
+at the new delay. These are short host-side samples, not guest FPS or a claim
+that iOS rendering is GPU accelerated. Capture and response time are additional
+to the configured delay; active polling reads roughly 9.9 MiB per fresh sample.
+
 ## `driverkitd` termination diagnosis — 31 October 2026
 
 ### Verified private HFSX configuration inspection

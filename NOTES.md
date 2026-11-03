@@ -1,5 +1,26 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 3 November 2026 - viewer refresh and GPU investigation
+
+- The live standalone viewer now waits 280 ms instead of 350 ms between
+  completed requests during interaction or changing frames. Idle/hidden
+  throttling and the controller's shared-frame cache are unchanged. Reload
+  the viewer to pick up the HTML; no guest restart. Two short eight-request
+  live samples on mostly unchanged pixels measured 394.8 ms versus 318.4 ms
+  mean request-start intervals, not iOS FPS. The actual guest remains CPU
+  rendered and GPU acceleration is not yet integrated.
+- A separate native Windows Vulkan probe on RTX 4070 Ti imported a 64 KiB
+  aligned CPU allocation with `VK_EXT_external_memory_host`, bound it to a
+  buffer, issued a GPU fill, waited on a fence, and verified all 16,384 words
+  in the original CPU allocation. Alignment was 4096 bytes. It passed twice;
+  source and results are ignored under `.studio/experiments/` in
+  `vulkan-host-import-20261103`. This proves a small host-memory/GPU primitive,
+  not guest graphics, renderer compatibility, or any frame-rate improvement.
+- Research lead: vphone-linux uses an Apple paravirtual graphics guest and
+  reims-vgpu/metal2vulkan on native Linux; this iOS 16 guest uses a CPU-backed
+  framebuffer and does not expose that guest driver. Dynarmic is an independent
+  ARM64 CPU execution candidate, not a complete iOS system or graphics bridge.
+
 ## 3 November 2026 - isolated startup and warm-resume experiments
 
 - A disposable 128 MiB ARM VM with the bundled QEMU and the production
