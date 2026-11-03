@@ -17,16 +17,34 @@
   data is private and ignored under `.studio/experiments/`. A separate
   one-core boot of another copied overlay reached the Apple logo; three
   SpringBoard main-thread samples showed the same wait and no guest-agent
-  response was established during the bounded test. Its console was saved
-  and the guest stopped. This does not establish the cause of the wait.
+  response was established during the bounded test. Exact private-cache
+  symbolication shows an activation-state request awaiting an XPC reply.
+  The activation daemon repeatedly aborts when setting backup exclusion on
+  its containers. A root-run diagnostic on a disposable directory verified
+  that the same NSURL setter and HFS xattrs work. The actual daemon runs as
+  mobile, whereas the existing target directories are root-owned mode 0755.
+  A clone-only diagnostic confirmed UID 501 receives POSIX EACCES setting
+  exclusion on a root-owned 0755 fixture, succeeds on a mobile-owned fixture,
+  and reads an exclusion set by root. Do not infer a missing lockdown
+  container: that name is a Mach service, not a container.
+- On a separately copied overlay, a bounded root helper preflighted the four
+  existing activation containers, set only NSURLIsExcludedFromBackupKey,
+  and verified their xattrs and unchanged owner/mode. It wrote a one-attempt
+  receipt; its launchd job was removed from the clone before a clean restart.
+  On that restart the previous activation-daemon crash loop stopped, the
+  guest reached the lock screen and an injected home swipe reached the home
+  screen. Private evidence: `.studio/experiments/ios-exclusion-repair-20261103/`.
+  This is one live clone test; app launch, persistence across further boots,
+  and integration into Studio remain unverified. Original overlay SHA-256
+  remained unchanged. The running clone's viewer is localhost port 8109.
 - The x86 preparation appliance logging self-test passed in a disposable VM:
   WHPX 4.29 seconds versus TCG 11.98 seconds. A synthetic HFSX format, 1200
   file rsync, SHA-256 and read-only fsck fixture passed both (3.09 seconds
   WHPX versus 18.52 seconds TCG total). These are small single-run fixtures,
   not real firmware preparation benchmarks. The WHPX run logged an ignored
   interrupt-vector warning; no production accelerator change was made.
-- Next: establish a stable interactive iOS screen on the isolated copy, then
-  repeat snapshot/resume with interaction, agent, time, network and app checks.
+- Next: test app launch and repeat snapshot/resume from the interactive screen,
+  with agent, time and network checks; do not disrupt an active user session.
   A production feature needs disk/RAM pairing, version and configuration
   pinning, stale-snapshot rejection, crash recovery and fallback. Keep the
   6 GiB free-RAM gate and original device data intact.
