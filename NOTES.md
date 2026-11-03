@@ -2,6 +2,13 @@
 
 ## 3 November 2026 - viewer refresh and GPU investigation
 
+- At the user's request to free memory, the repaired clone's running VM was
+  saved as `memory-release-20261103-192108` on its own QCOW2 overlay, then
+  stopped; available host RAM rose from about 1.9 to 8.6 GiB. `qemu-img check`
+  passed after stop. The private receipt and exact runtime paths are under
+  `.studio/experiments/ios-exclusion-repair-20261103/`. Restore of this home
+  screen snapshot has not been tested; do not start a cold VM on this overlay
+  and later restore the older snapshot over newer changes.
 - The live standalone viewer now waits 280 ms instead of 350 ms between
   completed requests during interaction or changing frames. Idle/hidden
   throttling and the controller's shared-frame cache are unchanged. Reload
