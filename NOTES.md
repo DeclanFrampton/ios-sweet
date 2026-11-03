@@ -2,6 +2,14 @@
 
 ## 3 November 2026 - viewer refresh and GPU investigation
 
+- Combined the pinned standalone Dynarmic A64 JIT with the native Vulkan
+  external-host-memory test in one isolated Windows process. The RTX 4070 Ti
+  filled a 64 KiB host allocation, then after the Vulkan import was released
+  a synthetic ARM64 program read `0x51a7c0de`, added one, wrote `0x51a7c0df`
+  and delivered SVC; both full GPU readback and guest result passed. Sources,
+  pinned dependencies, binary and build instructions are in the ignored
+  `.studio/experiments/dynarmic-20261103/` directory. This is sequential
+  host-memory interchange, not GPU guest rendering, iOS, or performance proof.
 - At the user's request to free memory, the repaired clone's running VM was
   saved as `memory-release-20261103-192108` on its own QCOW2 overlay, then
   stopped; available host RAM rose from about 1.9 to 8.6 GiB. `qemu-img check`
