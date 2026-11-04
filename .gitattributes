@@ -9,4 +9,4 @@ Start-iOS-Sweet-Apps.cmd text eol=crlf
 start.cmd text eol=crlf
 
 # Unified-diff context lines intentionally carry whitespace.
-experimental/windows-gpu/patches/*.patch -whitespace
+experimental/windows-gpu/patches/*.patch text eol=lf -whitespace
