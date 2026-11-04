@@ -1,4 +1,5 @@
 diff --git a/hw/arm/apple-silicon/meson.build b/hw/arm/apple-silicon/meson.build
+index 8d0b0fab09ba6d442fd147a115b6e1dedfaa1b01..198f5266994b3f9698b85e7d63c4d9383005a614 100644
 --- a/hw/arm/apple-silicon/meson.build
 +++ b/hw/arm/apple-silicon/meson.build
 @@ -1,4 +1,4 @@
@@ -8,9 +9,10 @@ diff --git a/hw/arm/apple-silicon/meson.build b/hw/arm/apple-silicon/meson.build
  # Optional: the agxemu library executes the jobs the GPU firmware kicks.
  agxemu_dir = get_option('agxemu')
 diff --git a/hw/arm/apple-silicon/t8030.c b/hw/arm/apple-silicon/t8030.c
+index f87189b7b35c195e418ed16290e28960d35ce2d9..a1dfc46a80a266a25f18d2955855ec42aee588af 100644
 --- a/hw/arm/apple-silicon/t8030.c
 +++ b/hw/arm/apple-silicon/t8030.c
-@@ -2500,7 +2500,7 @@
+@@ -2500,7 +2500,7 @@ static void t8030_sgx_capture(T8030GfxRegFile *rf, const char *kind,
              g_file_set_contents(ta_path, (const char *)ta, 0x20000, NULL);
          }
      }
@@ -19,7 +21,7 @@ diff --git a/hw/arm/apple-silicon/t8030.c b/hw/arm/apple-silicon/t8030.c
      if (fd < 0) {
          return;
      }
-@@ -2509,7 +2509,12 @@
+@@ -2509,7 +2509,12 @@ static void t8030_sgx_capture(T8030GfxRegFile *rf, const char *kind,
                                 MEMTXATTRS_UNSPECIFIED, buf,
                                 chunk) == MEMTX_OK &&
              !buffer_is_zero(buf, chunk) &&
@@ -33,9 +35,10 @@ diff --git a/hw/arm/apple-silicon/t8030.c b/hw/arm/apple-silicon/t8030.c
          }
      }
 diff --git a/hw/display/apple-gfx-mmio.c b/hw/display/apple-gfx-mmio.c
+index 2e639d340a2d3868744f23b5ebaf5214471ef0f1..90b21b409a5bb028745e0b1355dcc9700988555e 100644
 --- a/hw/display/apple-gfx-mmio.c
 +++ b/hw/display/apple-gfx-mmio.c
-@@ -99,7 +99,7 @@
+@@ -99,7 +99,7 @@ static bool apple_gfx_mmio_create_iosurface_device(AppleGFXMMIOState *s,
                                                     Error **errp)
  {
      /* The library copies the ranges. */
@@ -44,7 +47,7 @@ diff --git a/hw/display/apple-gfx-mmio.c b/hw/display/apple-gfx-mmio.c
      RvgMemoryMap memory_map = {
          .ranges = (const RvgMemoryRange *)memory_ranges->data,
          .range_count = memory_ranges->len,
-@@ -113,7 +113,9 @@
+@@ -113,7 +113,9 @@ static bool apple_gfx_mmio_create_iosurface_device(AppleGFXMMIOState *s,
          .struct_size = sizeof(config),
          .memory_map = &memory_map,
          .callbacks = &callbacks,
@@ -54,17 +57,15 @@ diff --git a/hw/display/apple-gfx-mmio.c b/hw/display/apple-gfx-mmio.c
      };
      RvgStatus status;
  
-@@ -154,9 +156,18 @@
+@@ -154,9 +156,18 @@ static void apple_gfx_mmio_realize(DeviceState *dev, Error **errp)
          .use_iosurface_mapper = true,
          .process_isolation = s->process_isolation,
          .callbacks = &callbacks,
 +#ifndef _WIN32
          .guest_page_shift = s->guest_page_shift,
--    };
--
 +#endif
-+    };
-+
+     };
+ 
 +#ifdef _WIN32
 +    /* This experimental DLL is built with guest-page-16k, not per-device pages. */
 +    if (s->guest_page_shift != 14) {
@@ -76,9 +77,10 @@ diff --git a/hw/display/apple-gfx-mmio.c b/hw/display/apple-gfx-mmio.c
          return;
      }
 diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
+index c61ecb1ff81c3ec4d8a267f41803e60ab312a8cb..f4877f6c953dc5d401bcdaca6b2d60c989ca115a 100644
 --- a/hw/display/apple-gfx.c
 +++ b/hw/display/apple-gfx.c
-@@ -599,6 +599,9 @@
+@@ -599,6 +599,9 @@ void apple_gfx_common_init(Object *obj, AppleGFXState *s, const char *obj_name)
  typedef struct AppleGFXMemoryWalk {
      GArray *ranges;
      GArray *files; /* NULL when the caller wants none */
@@ -88,7 +90,7 @@ diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
  } AppleGFXMemoryWalk;
  
  /*
-@@ -649,6 +652,18 @@
+@@ -649,6 +652,18 @@ static bool apple_gfx_add_memory_range(Int128 start, Int128 len,
              file = apple_gfx_memory_range_file(mr, host);
              g_array_append_val(walk->files, file);
          }
@@ -107,7 +109,7 @@ diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
          g_array_append_val(walk->ranges, range);
          trace_apple_gfx_memory_range(range.physical_address,
                                       range.physical_length, host, file.fd,
-@@ -657,7 +672,7 @@
+@@ -657,7 +672,7 @@ static bool apple_gfx_add_memory_range(Int128 start, Int128 len,
      return false;
  }
  
@@ -116,11 +118,10 @@ diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
  {
      AppleGFXMemoryWalk walk = {
          .ranges = g_array_new(false, false, sizeof(RvgMemoryRange)),
-@@ -667,6 +682,14 @@
-     if (files) {
+@@ -668,6 +683,14 @@ GArray *apple_gfx_new_memory_ranges(GArray **files)
          walk.files = g_array_new(false, false, sizeof(RvgMemoryRangeFile));
          *files = walk.files;
-+    }
+     }
 +    if (sections) {
 +        *sections = NULL;
 +#ifdef _WIN32
@@ -128,10 +129,11 @@ diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
 +                                     sizeof(RvgMemoryRangeSection));
 +        *sections = walk.sections;
 +#endif
-     }
++    }
      flatview_for_each_range(fv, apple_gfx_add_memory_range, &walk);
      return walk.ranges;
-@@ -977,6 +1000,7 @@
+ }
+@@ -977,6 +1000,7 @@ bool apple_gfx_common_realize(AppleGFXState *s, DeviceState *dev,
      static const char display_name[] = "Reims vGPU";
      g_autoptr(GArray) memory_ranges = NULL;
      g_autoptr(GArray) memory_files = NULL;
@@ -139,7 +141,7 @@ diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
      g_autofree RvgDisplayMode *modes = NULL;
      const AppleGFXDisplayMode *display_modes = apple_gfx_default_modes;
      uint32_t num_display_modes = ARRAY_SIZE(apple_gfx_default_modes);
-@@ -1039,12 +1063,24 @@
+@@ -1039,12 +1063,24 @@ bool apple_gfx_common_realize(AppleGFXState *s, DeviceState *dev,
          }
      }
  
@@ -167,9 +169,10 @@ diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
          .ranges = (const RvgMemoryRange *)memory_ranges->data,
          .range_count = memory_ranges->len,
 diff --git a/hw/display/apple-gfx.h b/hw/display/apple-gfx.h
+index acac83f5a31ac7af0cafaaf09e10e0229f4db1fa..43be2be0d2f162e1dc24dd26b83ce3a3aba75b1d 100644
 --- a/hw/display/apple-gfx.h
 +++ b/hw/display/apple-gfx.h
-@@ -115,8 +115,9 @@
+@@ -115,8 +115,9 @@ void apple_gfx_activity_end(void);
   * The guest's RAM, as RvgMemoryRange elements: an RvgMemoryMap's ranges.
   * Unless @files is NULL, it gets the file behind each range, as
   * RvgMemoryRangeFile elements in the same order, fd -1 where there is none.
@@ -180,10 +183,37 @@ diff --git a/hw/display/apple-gfx.h b/hw/display/apple-gfx.h
  
  extern const PropertyInfo qdev_prop_apple_gfx_display_mode;
  
+diff --git a/hw/input/hid.c b/hw/input/hid.c
+index de24cd0ef045200c946f1f866f9c342ccb7b553d..4b4308e729b3893dd04119e00c58515976d3bbfb 100644
+--- a/hw/input/hid.c
++++ b/hw/input/hid.c
+@@ -165,6 +165,8 @@ static void hid_pointer_event(DeviceState *dev, QemuConsole *src,
+ 
+ }
+ 
++#include "hw/input/hid-pointer-compress.h"
++
+ static void hid_pointer_sync(DeviceState *dev)
+ {
+     HIDState *hs = (HIDState *)dev;
+@@ -190,7 +192,11 @@ static void hid_pointer_sync(DeviceState *dev)
+          * motion information only and we can combine the two event
+          * into one.
+          */
+-        if (curr->buttons_state == prev->buttons_state) {
++        HIDPointerEvent *preceding =
++            &hs->ptr.queue[(hs->head + hs->n - 2) & QUEUE_MASK];
++        if (hid_pointer_can_compress(hs->kind == HID_TABLET, hs->n,
++                                    curr->buttons_state, prev->buttons_state,
++                                    preceding->buttons_state)) {
+             event_compression = true;
+         }
+     }
 diff --git a/hw/usb/dev-hid.c b/hw/usb/dev-hid.c
+index 02e44ac090e557c799e8fd4315ffb8e4c8c17193..40d1e811830ce57c8e90b432bc6c6a8a6aec9c8d 100644
 --- a/hw/usb/dev-hid.c
 +++ b/hw/usb/dev-hid.c
-@@ -1040,10 +1040,16 @@
+@@ -1040,10 +1040,16 @@ static int usb_hid_pointer_poll(USBHIDState *us, uint8_t *buf, int len)
              on = e && *e && *e != '0';
          }
          if (on) {
@@ -201,10 +231,31 @@ diff --git a/hw/usb/dev-hid.c b/hw/usb/dev-hid.c
                      tablet[1] | (tablet[2] << 8), tablet[3] | (tablet[4] << 8));
          }
      }
+diff --git a/include/hw/input/hid-pointer-compress.h b/include/hw/input/hid-pointer-compress.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..e7ea2024356f27ed55c542e7e26ee51b3df3fb15
+--- /dev/null
++++ b/include/hw/input/hid-pointer-compress.h
+@@ -0,0 +1,14 @@
++#ifndef QEMU_HID_POINTER_COMPRESS_H
++#define QEMU_HID_POINTER_COMPRESS_H
++
++/* An absolute button edge is a gesture anchor. Keep its original position
++ * until consumed; only later motion at the same button state may coalesce.
++ * The preceding ring slot is the previous queued or last consumed report. */
++static inline bool hid_pointer_can_compress(bool absolute, unsigned pending,
++                                          int current, int previous,
++                                          int preceding)
++{
++    return pending && current == previous &&
++           !(absolute && previous != preceding);
++}
++#endif
 diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index b1c1f3d5d6affbe6044aeaf5bb3aaaefbf4328e9..33a9de9e2a8d675d7f981f3f2df7314c7777bc47 100644
 --- a/include/qemu/osdep.h
 +++ b/include/qemu/osdep.h
-@@ -544,6 +544,8 @@
+@@ -544,6 +544,8 @@ void qemu_anon_ram_free(void *ptr, size_t size);
  int qemu_shm_alloc(size_t size, Error **errp);
  
  #ifdef _WIN32
@@ -215,6 +266,7 @@ diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
  #else
 diff --git a/include/qemu/win32-poll-limit.h b/include/qemu/win32-poll-limit.h
 new file mode 100644
+index 0000000000000000000000000000000000000000..f16b22a7584d362821167dd410420123be6bdb23
 --- /dev/null
 +++ b/include/qemu/win32-poll-limit.h
 @@ -0,0 +1,10 @@
@@ -229,9 +281,10 @@ new file mode 100644
 +}
 +#endif
 diff --git a/include/system/ramblock.h b/include/system/ramblock.h
+index 87e847e184aa496cae019fc246a7f7a0ddf4c65a..b271ecf1b0d0738bfbe4763b6410476317aed651 100644
 --- a/include/system/ramblock.h
 +++ b/include/system/ramblock.h
-@@ -45,6 +45,9 @@
+@@ -45,6 +45,9 @@ struct RAMBlock {
      Error *cpr_blocker;
      int fd;
      uint64_t fd_offset;
@@ -242,9 +295,10 @@ diff --git a/include/system/ramblock.h b/include/system/ramblock.h
      RamBlockAttributes *attributes;
      size_t page_size;
 diff --git a/meson.build b/meson.build
+index 1380d7c4dc98fbccae3d116483eb9f6525226d41..dc2ccf2b577f2abe53881146e12a7ae89e5f309d 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -733,8 +733,8 @@
+@@ -733,8 +733,8 @@ endif
  # The paravirtualized GPU device (apple-gfx) runs on libreims_vgpu, a
  # replacement for ParavirtualizedGraphics.framework, found through pkg-config
  # (configure with PKG_CONFIG_PATH=<reims-vgpu>/target/dist-*/lib/pkgconfig).
@@ -255,7 +309,7 @@ diff --git a/meson.build b/meson.build
                     required: get_option('pvg'))
  endif
  
-@@ -3193,7 +3193,7 @@
+@@ -3193,7 +3193,7 @@ foreach target : target_dirs
      # takes the guest's page size per device, arm64 guests under TCG on Linux.
      if pvg.found() and (target in accelerator_targets.get('CONFIG_HVF', []) or
                          target in accelerator_targets.get('CONFIG_KVM', []) or
@@ -265,6 +319,7 @@ diff --git a/meson.build b/meson.build
      endif
  
 diff --git a/scripts/symlink-install-tree.py b/scripts/symlink-install-tree.py
+index b72563895c5668d5947a31f36d6105463c943ac7..683751a7472d795fd4164b5f049ab42e5d29bb5a 100644
 --- a/scripts/symlink-install-tree.py
 +++ b/scripts/symlink-install-tree.py
 @@ -5,6 +5,7 @@
@@ -275,7 +330,7 @@ diff --git a/scripts/symlink-install-tree.py b/scripts/symlink-install-tree.py
  import subprocess
  import sys
  
-@@ -28,9 +29,15 @@
+@@ -28,9 +29,15 @@ def destdir_join(d1: str, d2: str) -> str:
      try:
          os.symlink(source, bundle_dest)
      except BaseException as e:
@@ -292,9 +347,10 @@ diff --git a/scripts/symlink-install-tree.py b/scripts/symlink-install-tree.py
              raise e
 +
 diff --git a/system/physmem.c b/system/physmem.c
+index aafd55e053db74646d02fdc5994c5cc143671284..3c22d01a400b834434f63ebecb39b9e1012bcf76 100644
 --- a/system/physmem.c
 +++ b/system/physmem.c
-@@ -1841,7 +1841,9 @@
+@@ -1841,7 +1841,9 @@ static void dirty_memory_extend(ram_addr_t new_ram_size)
  static void ram_block_add(RAMBlock *new_block, Error **errp)
  {
      const bool noreserve = qemu_ram_is_noreserve(new_block);
@@ -304,7 +360,7 @@ diff --git a/system/physmem.c b/system/physmem.c
      RAMBlock *block;
      RAMBlock *last_block = NULL;
      bool free_on_error = false;
-@@ -1861,9 +1863,16 @@
+@@ -1861,9 +1863,16 @@ static void ram_block_add(RAMBlock *new_block, Error **errp)
                  return;
              }
          } else {
@@ -321,7 +377,7 @@ diff --git a/system/physmem.c b/system/physmem.c
              if (!new_block->host) {
                  error_setg_errno(errp, errno,
                                   "cannot set up guest memory '%s'",
-@@ -1979,6 +1988,10 @@
+@@ -1979,6 +1988,10 @@ static void ram_block_add(RAMBlock *new_block, Error **errp)
  out_free:
      if (free_on_error) {
          qemu_anon_ram_free(new_block->host, new_block->max_length);
@@ -332,7 +388,7 @@ diff --git a/system/physmem.c b/system/physmem.c
          new_block->host = NULL;
      }
  }
-@@ -2268,6 +2281,9 @@
+@@ -2268,6 +2281,9 @@ static void reclaim_ramblock(RAMBlock *block)
  #endif
      } else {
          qemu_anon_ram_free(block->host, block->max_length);
@@ -344,6 +400,7 @@ diff --git a/system/physmem.c b/system/physmem.c
      if (block->guest_memfd >= 0) {
 diff --git a/tests/unit/test-win32-ram.c b/tests/unit/test-win32-ram.c
 new file mode 100644
+index 0000000000000000000000000000000000000000..109300bf2224a09c2120c63444ecf24daec3e593
 --- /dev/null
 +++ b/tests/unit/test-win32-ram.c
 @@ -0,0 +1,74 @@
@@ -422,9 +479,10 @@ new file mode 100644
 +    return g_test_run();
 +}
 diff --git a/util/main-loop.c b/util/main-loop.c
+index b877aaea1da1a01b1f1065380caaab072252bc51..2b8d2f19c9b7b91e3b24268a31b42619b8e72195 100644
 --- a/util/main-loop.c
 +++ b/util/main-loop.c
-@@ -459,6 +459,23 @@
+@@ -459,6 +459,23 @@ static void pollfds_poll(GArray *pollfds, int nfds, fd_set *rfds,
      }
  }
  
@@ -448,7 +506,7 @@ diff --git a/util/main-loop.c b/util/main-loop.c
  static int os_host_main_loop_wait(int64_t timeout)
  {
      GMainContext *context = g_main_context_default();
-@@ -516,6 +533,9 @@
+@@ -516,6 +533,9 @@ static int os_host_main_loop_wait(int64_t timeout)
      }
  
      poll_timeout_ns = qemu_soonest_timeout(poll_timeout_ns, timeout);
@@ -459,9 +517,10 @@ diff --git a/util/main-loop.c b/util/main-loop.c
      bql_unlock();
  
 diff --git a/util/oslib-win32.c b/util/oslib-win32.c
+index 94f4b4cbd4cb5e34a4ae3d6247cf119ad0918391..85e07fc4c75715980b678d7adafc4b33b97dada0 100644
 --- a/util/oslib-win32.c
 +++ b/util/oslib-win32.c
-@@ -44,10 +44,13 @@
+@@ -44,10 +44,13 @@ static int get_allocation_granularity(void)
      return system_info.dwAllocationGranularity;
  }
  
@@ -477,7 +536,7 @@ diff --git a/util/oslib-win32.c b/util/oslib-win32.c
  
      if (noreserve) {
          /*
-@@ -55,14 +58,39 @@
+@@ -55,23 +58,48 @@ void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
           * area; we cannot easily mimic POSIX MAP_NORESERVE semantics.
           */
          error_report("Skipping reservation of swap space is not supported.");
@@ -494,21 +553,20 @@ diff --git a/util/oslib-win32.c b/util/oslib-win32.c
 +    }
 +    ptr = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, size);
      trace_qemu_anon_ram_alloc(size, ptr);
--
--    if (ptr && align) {
 +    if (!ptr) {
 +        CloseHandle(mapping);
 +        errno = ENOMEM;
 +        return NULL;
 +    }
 +    *section = mapping;
-+
+ 
+-    if (ptr && align) {
 +    if (align) {
          *align = MAX(get_allocation_granularity(), getpagesize());
-+    }
-+    return ptr;
-+}
-+
+     }
+     return ptr;
+ }
+ 
 +void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
 +                          bool noreserve)
 +{
@@ -517,10 +575,11 @@ diff --git a/util/oslib-win32.c b/util/oslib-win32.c
 +
 +    if (section) {
 +        CloseHandle(section);
-     }
-     return ptr;
- }
-@@ -71,7 +99,7 @@
++    }
++    return ptr;
++}
++
+ void qemu_anon_ram_free(void *ptr, size_t size)
  {
      trace_qemu_anon_ram_free(ptr, size);
      if (ptr) {

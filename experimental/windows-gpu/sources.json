@@ -88,23 +88,25 @@
       "base_commit": "14c9913d2231080bd234c69421ed4f293a25f767",
       "archive_sha256": "a3b2ac267bbce81dad4a16dafb332b3f75e4ab4432179386d15911a25c0dfedb",
       "patch": "patches/qemu-vphone-windows.patch",
-      "patch_sha256": "ef8cb6aee5ec3c7a2ea3d274bda6857380916361a31f477979d70f1b82cd0beb",
+      "patch_sha256": "a767fbef38086446e9a68ae7423a7fc8a3026d468dc2c41988f27fcf00a79209",
       "files": {
         "hw/arm/apple-silicon/meson.build": "169ebfdf4d2d46dd7a7d026bf0054626e51cf55b0e3734a5a56f221e18cd64ab",
         "hw/arm/apple-silicon/t8030.c": "d295a2a1ae03fc10c75418eebb7a36a1c88190e9e8ab187e0dfd1b154705db1d",
         "hw/display/apple-gfx-mmio.c": "28014f808461eacfaea01469f6ab9d6d05d59a9af35992a00b31f4b6e1936b14",
         "hw/display/apple-gfx.c": "9884403bf0ec0fb66cd79462e1de96cc149afcdf8769b5a6fff8abc2c8c0aaeb",
         "hw/display/apple-gfx.h": "31350a1c5b4d65cf0000cfec346cd29064a44de8891a48b047d2a1fa5d17f518",
+        "hw/input/hid.c": "eb80de47614d00abdea6c2002b3170993d6254573cc0a6c76b80669181365724",
         "hw/usb/dev-hid.c": "8b9ff222ac710a84e182a0e5c836a457c216b12e677f2e4754765d9d640def1a",
+        "include/hw/input/hid-pointer-compress.h": "ae2cac004aaf45dd1f826f567ec46613624f7cc5bb2ed460b07da005027aa79f",
         "include/qemu/osdep.h": "9a16592d3f98de579be0aa3c15d69a109d6cdef9a666f81b228c4ec7d1716216",
+        "include/qemu/win32-poll-limit.h": "fe6d6569d6b090448b84659e37ddb565487cd7286bead596aa30346226404c2c",
         "include/system/ramblock.h": "38a5cea80c101b282a1d162f9e81cda61bc1b9488d114e1c21d83a7d286d5865",
         "meson.build": "ad5b3731b41e21b133bf387041fdef388f9e97972e0e26c9a27efd671065fb12",
         "scripts/symlink-install-tree.py": "d51138afa28c09f3a28b21ab66cfe47d74a09be8d2248cd77899c536b29d61f9",
         "system/physmem.c": "3d34f7893df9a55104867615d69a0ecc3ed95c34905342554e740747701a08af",
+        "tests/unit/test-win32-ram.c": "0258b036604c2a40a20c5c908c725fb41a12a3f6fa0701ecef5cb7e5d7e6af50",
         "util/main-loop.c": "de39ec404305fddb96d796c0924071e53e14e2fb0a6bd745e9e26921ddc280fc",
-        "util/oslib-win32.c": "922dc53a7a5e6e97458a342367a508ff8c8a61feea90d64c3670ea8c043b284d",
-        "include/qemu/win32-poll-limit.h": "fe6d6569d6b090448b84659e37ddb565487cd7286bead596aa30346226404c2c",
-        "tests/unit/test-win32-ram.c": "0258b036604c2a40a20c5c908c725fb41a12a3f6fa0701ecef5cb7e5d7e6af50"
+        "util/oslib-win32.c": "922dc53a7a5e6e97458a342367a508ff8c8a61feea90d64c3670ea8c043b284d"
       },
       "windows_bridge_reference": "https://github.com/tqmane/qemu/commit/22229b3d96b61578ee252abaf71c1912672fce5e"
     }
