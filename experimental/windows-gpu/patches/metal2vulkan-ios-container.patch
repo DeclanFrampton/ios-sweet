@@ -1,0 +1,1702 @@
+diff --git a/crates/metal2vulkan-air/src/container/mtlb.rs b/crates/metal2vulkan-air/src/container/mtlb.rs
+index d4c8e2b..88cc3c4 100644
+--- a/crates/metal2vulkan-air/src/container/mtlb.rs
++++ b/crates/metal2vulkan-air/src/container/mtlb.rs
+@@ -318,7 +318,19 @@ pub(super) fn parse(bytes: &[u8]) -> Result<Metallib<'_>, Error> {
+     if at != entries_end {
+         return Err(container_error(ContainerError::BadOffset, 32));
+     }
+-    let (extended, _) = tags::read_list(file, at, file.len())?;
++    // Some single-function libraries omit the extended header entirely. A declared
++    // section beginning here leaves no bytes for it; never parse that section as tags.
++    let extended_end = [header.public_metadata, header.private_metadata, header.bitcode]
++        .into_iter()
++        .filter(|section| section.offset >= at as u64)
++        .map(|section| section.offset)
++        .min()
++        .unwrap_or(header.file_size);
++    let extended = if extended_end == at as u64 {
++        Vec::new()
++    } else {
++        tags::read_list(file, at, offset(extended_end)?)?.0
++    };
+     let mut linkage = linkage(file, &extended)?;
+     if header.file_type == FILE_TYPE_DYNAMIC {
+         let section = header.bitcode;
+diff --git a/crates/metal2vulkan-air/src/container/tests.rs b/crates/metal2vulkan-air/src/container/tests.rs
+index 6a45c91..7f4454b 100644
+--- a/crates/metal2vulkan-air/src/container/tests.rs
++++ b/crates/metal2vulkan-air/src/container/tests.rs
+@@ -962,3 +962,19 @@ fn both_metadata_size_conventions_parse_and_nothing_else() {
+         );
+     }
+ }
++
++#[test]
++fn omitted_extended_header_preserves_function_and_metadata() {
++    let mut bytes = Builder::new(vec![FnSpec::new("synthetic", 0, 1)]).build();
++    let public = u64::from_le_bytes(bytes[40..48].try_into().unwrap()) as usize;
++    assert_eq!(&bytes[public - 4..public], b"ENDT");
++    bytes.drain(public - 4..public);
++    for field in [16, 40, 56, 72] {
++        let value = u64::from_le_bytes(bytes[field..field + 8].try_into().unwrap());
++        bytes[field..field + 8].copy_from_slice(&(value - 4).to_le_bytes());
++    }
++    let lib = metallib(&bytes);
++    assert!(lib.extended.is_empty());
++    assert_eq!(lib.functions.len(), 1);
++    assert_eq!(lib.functions[0].name, "synthetic");
++}
+diff --git a/crates/metal2vulkan-runtime/Cargo.toml b/crates/metal2vulkan-runtime/Cargo.toml
+index 69f2486..d25f476 100644
+--- a/crates/metal2vulkan-runtime/Cargo.toml
++++ b/crates/metal2vulkan-runtime/Cargo.toml
+@@ -70,3 +70,11 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(m2v_gpu)", "cfg(m2v_cpu_ic
+ 
+ [build-dependencies]
+ sha2.workspace = true
++
++[[example]]
++name = 'rgb444_surface'
++path = 'examples/rgb444_surface.rs'
++
++[[example]]
++name = 'rgb9e5_storage'
++path = 'examples/rgb9e5_storage.rs'
+diff --git a/crates/metal2vulkan-runtime/examples/rgb444_probe.ll b/crates/metal2vulkan-runtime/examples/rgb444_probe.ll
+new file mode 100644
+index 0000000..b509731
+--- /dev/null
++++ b/crates/metal2vulkan-runtime/examples/rgb444_probe.ll
+@@ -0,0 +1,304 @@
++; Owned synthetic kernels (WP-XRR2).
++source_filename = "ycbcr_textures.metal"
++
++define void @read_texels(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %s = tail call ptr addrspace(2) @air.get_read_sampler()
++  %r = tail call { <4 x float>, i8 } @air.read_texture_2d.v4f32(ptr addrspace(1) %t, ptr addrspace(2) %s, <2 x i32> %gid, <2 x i32> zeroinitializer, i32 0, i32 1)
++  %v = extractvalue { <4 x float>, i8 } %r, 0
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @sample_texels(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, ptr addrspace(2) %smp, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %g = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %gid)
++  %n = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %size)
++  %c = fadd <2 x float> %g, <float 5.000000e-01, float 5.000000e-01>
++  %uv = fdiv <2 x float> %c, %n
++  %r = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(ptr addrspace(1) %t, ptr addrspace(2) %smp, <2 x float> %uv, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0)
++  %v = extractvalue { <4 x float>, i8 } %r, 0
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @sample_between(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, ptr addrspace(2) %smp, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %g = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %gid)
++  %n = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %size)
++  %c = fadd <2 x float> %g, <float 9.062500e-01, float 7.187500e-01>
++  %uv = fdiv <2 x float> %c, %n
++  %r = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(ptr addrspace(1) %t, ptr addrspace(2) %smp, <2 x float> %uv, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0)
++  %v = extractvalue { <4 x float>, i8 } %r, 0
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @read_half(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %s = tail call ptr addrspace(2) @air.get_read_sampler()
++  %r = tail call { <4 x half>, i8 } @air.read_texture_2d.v4f16(ptr addrspace(1) %t, ptr addrspace(2) %s, <2 x i32> %gid, <2 x i32> zeroinitializer, i32 0, i32 1)
++  %h = extractvalue { <4 x half>, i8 } %r, 0
++  %v = fpext <4 x half> %h to <4 x float>
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @sample_half(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, ptr addrspace(2) %smp, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %g = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %gid)
++  %n = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %size)
++  %c = fadd <2 x float> %g, <float 5.000000e-01, float 5.000000e-01>
++  %uv = fdiv <2 x float> %c, %n
++  %r = tail call { <4 x half>, i8 } @air.sample_texture_2d.v4f16(ptr addrspace(1) %t, ptr addrspace(2) %smp, <2 x float> %uv, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0)
++  %h = extractvalue { <4 x half>, i8 } %r, 0
++  %v = fpext <4 x half> %h to <4 x float>
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @sample_outside(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, ptr addrspace(2) %smp, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %g = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %gid)
++  %n = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %size)
++  %q = fmul <2 x float> %n, <float 2.500000e-01, float 2.500000e-01>
++  %c0 = fadd <2 x float> %g, <float 5.000000e-01, float 5.000000e-01>
++  %c = fsub <2 x float> %c0, %q
++  %m = fmul <2 x float> %n, <float 5.000000e-01, float 5.000000e-01>
++  %uv = fdiv <2 x float> %c, %m
++  %r = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(ptr addrspace(1) %t, ptr addrspace(2) %smp, <2 x float> %uv, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0)
++  %v = extractvalue { <4 x float>, i8 } %r, 0
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++; ---- Added by WP-TXN2 (DESIGN D620): gathers of red and blue at texel corners ----
++define void @gather_red(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, ptr addrspace(2) %smp, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %g = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %gid)
++  %n0 = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %size)
++  %n = fsub <2 x float> %n0, <float 1.000000e+00, float 1.000000e+00>
++  %uv = fdiv <2 x float> %g, %n
++  %r = tail call { <4 x float>, i8 } @air.gather_texture_2d.v4f32(ptr addrspace(1) %t, ptr addrspace(2) %smp, <2 x float> %uv, i1 true, <2 x i32> zeroinitializer, i32 0, i32 0)
++  %v = extractvalue { <4 x float>, i8 } %r, 0
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @gather_blue(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, ptr addrspace(2) %smp, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %g = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %gid)
++  %n0 = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %size)
++  %n = fsub <2 x float> %n0, <float 1.000000e+00, float 1.000000e+00>
++  %uv = fdiv <2 x float> %g, %n
++  %r = tail call { <4 x float>, i8 } @air.gather_texture_2d.v4f32(ptr addrspace(1) %t, ptr addrspace(2) %smp, <2 x float> %uv, i1 true, <2 x i32> zeroinitializer, i32 2, i32 0)
++  %v = extractvalue { <4 x float>, i8 } %r, 0
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @gather_red_half(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, ptr addrspace(2) %smp, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %g = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %gid)
++  %n0 = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %size)
++  %n = fsub <2 x float> %n0, <float 1.000000e+00, float 1.000000e+00>
++  %uv = fdiv <2 x float> %g, %n
++  %r = tail call { <4 x half>, i8 } @air.gather_texture_2d.v4f16(ptr addrspace(1) %t, ptr addrspace(2) %smp, <2 x float> %uv, i1 true, <2 x i32> zeroinitializer, i32 0, i32 0)
++  %h = extractvalue { <4 x half>, i8 } %r, 0
++  %v = fpext <4 x half> %h to <4 x float>
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @gather_blue_half(ptr addrspace(1) %t, ptr addrspace(1) noalias %out, ptr addrspace(2) %smp, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %g = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %gid)
++  %n0 = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %size)
++  %n = fsub <2 x float> %n0, <float 1.000000e+00, float 1.000000e+00>
++  %uv = fdiv <2 x float> %g, %n
++  %r = tail call { <4 x half>, i8 } @air.gather_texture_2d.v4f16(ptr addrspace(1) %t, ptr addrspace(2) %smp, <2 x float> %uv, i1 true, <2 x i32> zeroinitializer, i32 2, i32 0)
++  %h = extractvalue { <4 x half>, i8 } %r, 0
++  %v = fpext <4 x half> %h to <4 x float>
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %p = getelementptr inbounds <4 x float>, ptr addrspace(1) %out, i64 %j
++  store <4 x float> %v, ptr addrspace(1) %p, align 16
++  ret void
++}
++
++define void @fill(ptr addrspace(1) %t, ptr addrspace(1) %value, <2 x i32> %gid) {
++entry:
++  %v = load <4 x float>, ptr addrspace(1) %value, align 16
++  tail call void @air.write_texture_2d.v4f32(ptr addrspace(1) %t, <2 x i32> %gid, <4 x float> %v, i32 0, i32 2)
++  ret void
++}
++
++define void @write_masked(ptr addrspace(1) %t, ptr addrspace(1) noalias %values, ptr addrspace(1) noalias %mask, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %mp = getelementptr inbounds i32, ptr addrspace(1) %mask, i64 %j
++  %m = load i32, ptr addrspace(1) %mp, align 4
++  %on = icmp ne i32 %m, 0
++  br i1 %on, label %write, label %done
++
++write:
++  %vp = getelementptr inbounds <4 x float>, ptr addrspace(1) %values, i64 %j
++  %v = load <4 x float>, ptr addrspace(1) %vp, align 16
++  tail call void @air.write_texture_2d.v4f32(ptr addrspace(1) %t, <2 x i32> %gid, <4 x float> %v, i32 0, i32 2)
++  br label %done
++
++done:
++  ret void
++}
++
++define void @write_masked_half(ptr addrspace(1) %t, ptr addrspace(1) noalias %values, ptr addrspace(1) noalias %mask, <2 x i32> %gid, <2 x i32> %size) {
++entry:
++  %x = extractelement <2 x i32> %gid, i64 0
++  %y = extractelement <2 x i32> %gid, i64 1
++  %w = extractelement <2 x i32> %size, i64 0
++  %row = mul i32 %y, %w
++  %i = add i32 %row, %x
++  %j = zext i32 %i to i64
++  %mp = getelementptr inbounds i32, ptr addrspace(1) %mask, i64 %j
++  %m = load i32, ptr addrspace(1) %mp, align 4
++  %on = icmp ne i32 %m, 0
++  br i1 %on, label %write, label %done
++
++write:
++  %vp = getelementptr inbounds <4 x half>, ptr addrspace(1) %values, i64 %j
++  %v = load <4 x half>, ptr addrspace(1) %vp, align 8
++  tail call void @air.write_texture_2d.v4f16(ptr addrspace(1) %t, <2 x i32> %gid, <4 x half> %v, i32 0, i32 2)
++  br label %done
++
++done:
++  ret void
++}
++
++declare ptr addrspace(2) @air.get_read_sampler()
++declare <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32>)
++declare { <4 x float>, i8 } @air.read_texture_2d.v4f32(ptr addrspace(1), ptr addrspace(2), <2 x i32>, <2 x i32>, i32, i32)
++declare { <4 x float>, i8 } @air.sample_texture_2d.v4f32(ptr addrspace(1), ptr addrspace(2), <2 x float>, i1, <2 x i32>, i1, float, float, i32)
++declare { <4 x half>, i8 } @air.read_texture_2d.v4f16(ptr addrspace(1), ptr addrspace(2), <2 x i32>, <2 x i32>, i32, i32)
++declare { <4 x half>, i8 } @air.sample_texture_2d.v4f16(ptr addrspace(1), ptr addrspace(2), <2 x float>, i1, <2 x i32>, i1, float, float, i32)
++declare void @air.write_texture_2d.v4f32(ptr addrspace(1), <2 x i32>, <4 x float>, i32, i32)
++declare void @air.write_texture_2d.v4f16(ptr addrspace(1), <2 x i32>, <4 x half>, i32, i32)
++declare { <4 x float>, i8 } @air.gather_texture_2d.v4f32(ptr addrspace(1), ptr addrspace(2), <2 x float>, i1, <2 x i32>, i32, i32)
++declare { <4 x half>, i8 } @air.gather_texture_2d.v4f16(ptr addrspace(1), ptr addrspace(2), <2 x float>, i1, <2 x i32>, i32, i32)
++
++!air.kernel = !{!0, !10, !20, !40, !50, !60, !70, !80, !81, !82, !83, !90, !96}
++!air.version = !{!30}
++!air.language_version = !{!31}
++!0 = !{ptr @read_texels, !1, !2}
++!1 = !{}
++!2 = !{!3, !4, !5, !6}
++!3 = !{i32 0, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.read", !"air.arg_type_name", !"texture2d<float, read>", !"air.arg_name", !"t"}
++!4 = !{i32 1, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.read_write", !"air.address_space", i32 1, !"air.arg_type_size", i32 16, !"air.arg_type_align_size", i32 16, !"air.arg_type_name", !"float4", !"air.arg_name", !"out"}
++!5 = !{i32 2, !"air.thread_position_in_grid", !"air.arg_type_name", !"uint2", !"air.arg_name", !"gid"}
++!6 = !{i32 3, !"air.threads_per_grid", !"air.arg_type_name", !"uint2", !"air.arg_name", !"size"}
++!10 = !{ptr @sample_texels, !1, !11}
++!11 = !{!12, !4, !13, !14, !15}
++!12 = !{i32 0, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.sample", !"air.arg_type_name", !"texture2d<float, sample>", !"air.arg_name", !"t"}
++!13 = !{i32 2, !"air.sampler", !"air.location_index", i32 0, i32 1, !"air.arg_type_name", !"sampler", !"air.arg_name", !"smp"}
++!14 = !{i32 3, !"air.thread_position_in_grid", !"air.arg_type_name", !"uint2", !"air.arg_name", !"gid"}
++!15 = !{i32 4, !"air.threads_per_grid", !"air.arg_type_name", !"uint2", !"air.arg_name", !"size"}
++!20 = !{ptr @fill, !1, !21}
++!21 = !{!22, !23, !24}
++!22 = !{i32 0, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.write", !"air.arg_type_name", !"texture2d<float, write>", !"air.arg_name", !"t"}
++!23 = !{i32 1, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.read", !"air.address_space", i32 1, !"air.arg_type_size", i32 16, !"air.arg_type_align_size", i32 16, !"air.arg_type_name", !"float4", !"air.arg_name", !"value"}
++!24 = !{i32 2, !"air.thread_position_in_grid", !"air.arg_type_name", !"uint2", !"air.arg_name", !"gid"}
++!40 = !{ptr @sample_between, !1, !11}
++!50 = !{ptr @read_half, !1, !51}
++!51 = !{!52, !4, !5, !6}
++!52 = !{i32 0, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.read", !"air.arg_type_name", !"texture2d<half, read>", !"air.arg_name", !"t"}
++!60 = !{ptr @sample_half, !1, !61}
++!61 = !{!62, !4, !13, !14, !15}
++!62 = !{i32 0, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.sample", !"air.arg_type_name", !"texture2d<half, sample>", !"air.arg_name", !"t"}
++!70 = !{ptr @sample_outside, !1, !11}
++!80 = !{ptr @gather_red, !1, !11}
++!81 = !{ptr @gather_blue, !1, !11}
++!82 = !{ptr @gather_red_half, !1, !61}
++!83 = !{ptr @gather_blue_half, !1, !61}
++!90 = !{ptr @write_masked, !1, !91}
++!91 = !{!22, !92, !93, !94, !95}
++!92 = !{i32 1, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.read", !"air.address_space", i32 1, !"air.arg_type_size", i32 16, !"air.arg_type_align_size", i32 16, !"air.arg_type_name", !"float4", !"air.arg_name", !"values"}
++!93 = !{i32 2, !"air.buffer", !"air.location_index", i32 1, i32 1, !"air.read", !"air.address_space", i32 1, !"air.arg_type_size", i32 4, !"air.arg_type_align_size", i32 4, !"air.arg_type_name", !"uint", !"air.arg_name", !"mask"}
++!94 = !{i32 3, !"air.thread_position_in_grid", !"air.arg_type_name", !"uint2", !"air.arg_name", !"gid"}
++!95 = !{i32 4, !"air.threads_per_grid", !"air.arg_type_name", !"uint2", !"air.arg_name", !"size"}
++!96 = !{ptr @write_masked_half, !1, !97}
++!97 = !{!98, !99, !93, !94, !95}
++!98 = !{i32 0, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.write", !"air.arg_type_name", !"texture2d<half, write>", !"air.arg_name", !"t"}
++!99 = !{i32 1, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.read", !"air.address_space", i32 1, !"air.arg_type_size", i32 8, !"air.arg_type_align_size", i32 8, !"air.arg_type_name", !"half4", !"air.arg_name", !"values"}
++!30 = !{i32 2, i32 8, i32 0}
++!31 = !{!"Metal", i32 4, i32 0, i32 0}
+diff --git a/crates/metal2vulkan-runtime/examples/rgb444_surface.rs b/crates/metal2vulkan-runtime/examples/rgb444_surface.rs
+new file mode 100644
+index 0000000..41f3e22
+--- /dev/null
++++ b/crates/metal2vulkan-runtime/examples/rgb444_surface.rs
+@@ -0,0 +1,77 @@
++//! Bounded NVIDIA/Vulkan readback of explicit G + BR plane geometry. No guest data.
++mod common;
++use metal2vulkan::metal::{PixelFormat, TextureUsage};
++use metal2vulkan_runtime::{Device, IoSurfacePlane, IoSurfaceYCbCr, PipelineOptions, ResourceOptions, Size, TextureDescriptor};
++fn main() -> common::Result<()> {
++ let d=Device::system_default()?; println!("device: {}",d.name());
++ let air=metal2vulkan::library::Library::from_air(include_bytes!("rgb444_probe.bc"))?;
++ let lib=d.new_library_with_compile_library(air);
++ let f=lib.new_function_with_name("read_texels")?;
++ let pipeline=d.new_compute_pipeline_state_with_function(&f,&PipelineOptions::default())?;
++ for (w,h) in [(7u64,3u64),(1,1),(8,2)] {
++  let row=16u64; let at=64u64; let length=at+row*(h-1)+2*w;
++  let mut bytes=vec![0xadu8; length as usize];
++  for y in 0..h {for x in 0..w {
++   bytes[(y*row+x) as usize]=((x*37+y*11)%256) as u8;
++   bytes[(at+y*row+2*x) as usize]=((x*13+y*71)%256) as u8;
++   bytes[(at+y*row+2*x+1) as usize]=((x*61+y*23)%256) as u8;
++  }}
++  let backing=d.new_buffer_with_bytes(&bytes,ResourceOptions::shared())?;
++  let mut desc=TextureDescriptor::texture_2d(PixelFormat::RGB84442P,w,h,false);
++  desc.resource_options=ResourceOptions::shared();desc.usage=TextureUsage::SHADER_READ;
++  let facts=IoSurfaceYCbCr::new(u32::from_be_bytes(*b"_RB4"),0,[w,h],at,row).with_plane_shapes([[w,h,1],[w,h,2]]);
++  let tex=backing.new_texture_with_iosurface_plane(&desc,IoSurfacePlane::new(0,row,true).with_ycbcr(facts))?;
++  let out=d.new_buffer(w*h*16,ResourceOptions::shared())?;
++  let q=d.new_command_queue()?; let cb=q.command_buffer()?;
++  let mut enc=cb.compute_command_encoder()?;
++  enc.set_compute_pipeline_state(&pipeline)?;enc.set_texture(Some(&tex),0)?;enc.set_buffer(Some(&out),0,0)?;
++  enc.dispatch_threads(Size::new(w,h,1),Size::new(1,1,1))?;enc.end_encoding()?;common::run(&cb)?;
++  let got=common::bytes(&out)?;
++  for y in 0..h {for x in 0..w {
++   let expected=[bytes[(at+y*row+2*x+1) as usize] as f32/255.0,bytes[(y*row+x) as usize] as f32/255.0,bytes[(at+y*row+2*x) as usize] as f32/255.0,1.0];
++   for c in 0..4 {let o=((y*w+x)*16) as usize+c*4;let actual=f32::from_le_bytes(got[o..o+4].try_into().unwrap());assert!((actual-expected[c]).abs()<0.00001,"pixel {x},{y} channel {c}: {actual} != {}",expected[c]);}
++  }}
++  assert_eq!(common::bytes(&backing)?,bytes,"read must preserve source/padding");
++  let short=d.new_buffer(length-1,ResourceOptions::shared())?;
++  assert!(short.new_texture_with_iosurface_plane(&desc,IoSurfacePlane::new(0,row,true).with_ycbcr(facts)).is_err());
++  for plane in [IoSurfacePlane::new(1,row,true),IoSurfacePlane::new(0,15,true)] {
++   assert!(backing.new_texture_with_iosurface_plane(&desc,plane.with_ycbcr(facts)).is_err());
++  }
++  let mut bad=facts;bad.plane_shapes=None;
++  assert!(backing.new_texture_with_iosurface_plane(&desc,IoSurfacePlane::new(0,row,true).with_ycbcr(bad)).is_err());
++  let mut render_desc=desc.clone(); render_desc.usage=TextureUsage::SHADER_READ | TextureUsage::RENDER_TARGET;
++  let target=backing.new_texture_with_iosurface_plane(&render_desc,IoSurfacePlane::new(0,row,true).with_ycbcr(facts))?;
++  let mut pass=metal2vulkan_runtime::RenderPassDescriptor::new();
++  let color=&mut pass.color_attachments[0];color.texture=Some(target);color.load_action=metal2vulkan_runtime::LoadAction::Load;color.store_action=metal2vulkan_runtime::StoreAction::Store;color.clear_color=metal2vulkan_runtime::ClearColor::new(1.0,0.0,0.0,1.0);
++  let preserve=q.command_buffer()?;let mut enc=preserve.render_command_encoder(&pass)?;enc.end_encoding()?;common::run(&preserve)?;
++  assert_eq!(common::bytes(&backing)?,bytes,"load/store with no draw must preserve both planes and padding");
++  pass.color_attachments[0].load_action=metal2vulkan_runtime::LoadAction::Clear;
++  let render=q.command_buffer()?;let mut enc=render.render_command_encoder(&pass)?;enc.end_encoding()?;common::run(&render)?;
++  let after=common::bytes(&backing)?;
++  let mut expected=bytes.clone();
++  for y in 0..h {for x in 0..w { expected[(y*row+x) as usize]=0;expected[(at+y*row+2*x) as usize]=0;expected[(at+y*row+2*x+1) as usize]=255; }}
++  assert_eq!(after,expected,"render clear must encode G/BR planes and preserve padding");
++  let library=d.new_library_with_compile_library(metal2vulkan::library::Library::from_air(include_bytes!("rgb444_render_probe.bc"))?);
++  let vertex=library.new_function_with_name("colored_vertex")?;let fragment=library.new_function_with_name("colored_fragment")?;
++  let mut pd=metal2vulkan::pipeline::RenderPipelineDescriptor::new(metal2vulkan::pipeline::StageSource::Function(vertex.function_descriptor()));
++  pd.fragment=Some(metal2vulkan::pipeline::StageSource::Function(fragment.function_descriptor()));
++  let mut ca=metal2vulkan::pipeline::ColorAttachmentDescriptor::new(PixelFormat::RGB84442P);ca.blending_enabled=true;ca.destination_rgb_blend_factor=metal2vulkan::metal::BlendFactor::OneMinusSourceAlpha;ca.destination_alpha_blend_factor=metal2vulkan::metal::BlendFactor::OneMinusSourceAlpha;pd.color_attachments[0]=Some(ca);
++  let state=d.new_render_pipeline_state(&pd,&PipelineOptions::default())?;
++  let positions:[f32;12]=[-1.,-1.,1.,-1.,-1.,1.,1.,-1.,1.,1.,-1.,1.];
++  let pb:Vec<u8>=positions.iter().flat_map(|v|v.to_le_bytes()).collect();let cbv:Vec<u8>=(0..6).flat_map(|_|[0.5f32,0.,0.,0.5]).flat_map(|v|v.to_le_bytes()).collect();
++  let pos=d.new_buffer_with_bytes(&pb,ResourceOptions::shared())?;let colors=d.new_buffer_with_bytes(&cbv,ResourceOptions::shared())?;
++  pass.color_attachments[0].clear_color=metal2vulkan_runtime::ClearColor::new(0.,0.,1.,1.);
++  let draw=q.command_buffer()?;let mut enc=draw.render_command_encoder(&pass)?;enc.set_render_pipeline_state(&state)?;enc.set_vertex_buffer(Some(&pos),0,0)?;enc.set_vertex_buffer(Some(&colors),0,1)?;enc.draw_primitives(metal2vulkan::metal::PrimitiveType::Triangle,0,6,1,0)?;enc.end_encoding()?;common::run(&draw)?;
++  let after=common::bytes(&backing)?;for y in 0..h {for x in 0..w {expected[(at+y*row+2*x) as usize]=128;expected[(at+y*row+2*x+1) as usize]=128;}}
++  assert_eq!(after,expected,"source-over red over blue must encode purple and preserve padding");
++  pass.color_attachments[0].load_action=metal2vulkan_runtime::LoadAction::Load;
++  let draw=q.command_buffer()?;let mut enc=draw.render_command_encoder(&pass)?;enc.set_render_pipeline_state(&state)?;enc.set_vertex_buffer(Some(&pos),0,0)?;enc.set_vertex_buffer(Some(&colors),0,1)?;enc.draw_primitives(metal2vulkan::metal::PrimitiveType::Triangle,0,6,1,0)?;enc.end_encoding()?;common::run(&draw)?;
++  let after=common::bytes(&backing)?;
++  for y in 0..h {for x in 0..w {let at=(at+y*row+2*x) as usize; assert_eq!(after[at],64,"loaded blue contribution");assert!((191..=192).contains(&after[at+1]),"loaded red contribution {}",after[at+1]);expected[at]=after[at];expected[at+1]=after[at+1];}}
++  assert_eq!(after,expected,"load blend must preserve padding and green plane");
++  pass.color_attachments[0].store_action=metal2vulkan_runtime::StoreAction::DontCare;
++  let discard=q.command_buffer()?;let mut enc=discard.render_command_encoder(&pass)?;enc.end_encoding()?;common::run(&discard)?;
++  println!("PASS {w}x{h}: GPU RGB read, clear/store and source-over draw writeback, boundaries and padding");
++ }
++ Ok(())
++}
+diff --git a/crates/metal2vulkan-runtime/examples/rgb9e5_storage.rs b/crates/metal2vulkan-runtime/examples/rgb9e5_storage.rs
+new file mode 100644
+index 0000000..c0bf775
+--- /dev/null
++++ b/crates/metal2vulkan-runtime/examples/rgb9e5_storage.rs
+@@ -0,0 +1,66 @@
++//! GPU regression for packed RGB9E5 compute stores through an integer alias.
++mod common;
++use metal2vulkan::metal::{PixelFormat, TextureUsage};
++use metal2vulkan_runtime::{BlitOption, Device, Origin, PipelineOptions, ResourceOptions, Size, TextureDescriptor};
++
++fn reference(v: [f32;4]) -> u32 {
++    let c: Vec<f64> = v[..3].iter().map(|&x| if x.is_nan() {0.0} else {(x as f64).clamp(0.0,65408.0)}).collect();
++    let max = c.iter().copied().fold(0.0, f64::max);
++    let mut e = if max == 0.0 {0} else {(max.log2().floor() as i32 + 16).max(0)};
++    if (max / 2f64.powi(e-24) + 0.5).floor() == 512.0 {e += 1;}
++    let mut word = (e as u32) << 27;
++    for (i,v) in c.into_iter().enumerate() { word |= ((v / 2f64.powi(e-24) + 0.5).floor() as u32) << (9*i); }
++    word
++}
++fn main() -> common::Result<()> {
++    let d=Device::system_default()?; println!("device: {}", d.name());
++    let lib=d.new_library_with_compile_library(metal2vulkan::library::Library::from_air(include_bytes!("rgb444_probe.bc"))?);
++    let f=lib.new_function_with_name("write_masked")?;
++    let write=d.new_compute_pipeline_state_with_function(&f,&PipelineOptions::default())?;
++    let f=lib.new_function_with_name("read_texels")?;
++    let read=d.new_compute_pipeline_state_with_function(&f,&PipelineOptions::default())?;
++    let edges = [[0.0;4], [1.0,0.5,2.0,0.0], [-1.0,70000.0,0.001,0.0],
++        [f32::NAN,f32::INFINITY,1.0,0.0], [2f32.powi(-25),2f32.powi(-24),0.0,1.0],
++        [1.998046875,1.0,0.0,0.0], [65408.0,1e-8,3.0,0.0]];
++    let (w,h)=(127u64,3u64); let n=(w*h) as usize;
++    let mut seed=0x12345678u32;
++    let values: Vec<[f32;4]>=(0..n).map(|i| if i<edges.len(){edges[i]} else {
++        let mut v=[0.0;4]; for c in &mut v {seed=seed.wrapping_mul(1664525).wrapping_add(1013904223); *c=((seed>>8) as f32 / 16777216.0) * 2f32.powi((i%32) as i32-16);} v
++    }).collect();
++    let input: Vec<u8>=values.iter().flatten().flat_map(|v|v.to_le_bytes()).collect();
++    let input=d.new_buffer_with_bytes(&input,ResourceOptions::shared())?;
++    let masks: Vec<u32>=(0..n).map(|i| if i>7 && i%5==0 {0} else {1}).collect();
++    let mb: Vec<u8>=masks.iter().flat_map(|v|v.to_le_bytes()).collect();
++    let mask=d.new_buffer_with_bytes(&mb,ResourceOptions::shared())?;
++    let row=512u64; let init=d.new_buffer_with_bytes(&vec![0; (row*h) as usize],ResourceOptions::shared())?;
++    for options in [ResourceOptions::shared(),ResourceOptions::private()] {
++        let mut desc=TextureDescriptor::texture_2d(PixelFormat::RGB9E5Float,w,h,false);
++        desc.resource_options=options;desc.usage=TextureUsage::SHADER_READ|TextureUsage::SHADER_WRITE;
++        let tex=d.new_texture(&desc)?;
++        let raw=d.new_buffer_with_bytes(&vec![0xad; (row*h+16) as usize],ResourceOptions::shared())?;
++        let floats=d.new_buffer(n as u64*16,ResourceOptions::shared())?;
++        let q=d.new_command_queue()?;let cb=q.command_buffer()?;
++        let mut b=cb.blit_command_encoder()?;
++        b.copy_from_buffer_to_texture(&init,0,row,row*h,Size::new(w,h,1),&tex,0,0,Origin::new(0,0,0),BlitOption::None)?;b.end_encoding()?;
++        let mut e=cb.compute_command_encoder()?;e.set_compute_pipeline_state(&write)?;e.set_texture(Some(&tex),0)?;
++        e.set_buffer(Some(&input),0,0)?;e.set_buffer(Some(&mask),0,1)?;
++        e.dispatch_threads(Size::new(w,h,1),Size::new(1,1,1))?;e.end_encoding()?;
++        let mut e=cb.compute_command_encoder()?;e.set_compute_pipeline_state(&read)?;e.set_texture(Some(&tex),0)?;
++        e.set_buffer(Some(&floats),0,0)?;e.dispatch_threads(Size::new(w,h,1),Size::new(1,1,1))?;e.end_encoding()?;
++        let mut b=cb.blit_command_encoder()?;
++        b.copy_from_texture_to_buffer(&tex,0,0,Origin::new(0,0,0),Size::new(w,h,1),&raw,8,row,row*h,BlitOption::None)?;b.end_encoding()?;
++        common::run(&cb)?;
++        let got=common::bytes(&raw)?;let sampled=common::bytes(&floats)?;
++        let mut expected=vec![0xad; (row*h+16) as usize];
++        for i in 0..n {let word=if masks[i]==0 {0} else {reference(values[i])};
++            let at=8+(i/w as usize)*row as usize+(i%w as usize)*4;
++            expected[at..at+4].copy_from_slice(&word.to_le_bytes());
++            for c in 0..4 {let at=i*16+c*4;let actual=f32::from_le_bytes(sampled[at..at+4].try_into().unwrap());
++                let want=if c==3 {1.0} else {((word>>(c*9))&511) as f32 * 2f32.powi((word>>27) as i32-24)};
++                assert_eq!(actual,want,"sample {i} channel {c}");}
++        }
++        assert_eq!(got,expected,"packed words and padding");
++        println!("PASS {options:?}: {n} packed compute writes, masked preservation, sampled values, padded readback");
++    }
++    Ok(())
++}
+diff --git a/crates/metal2vulkan-runtime/src/blit.rs b/crates/metal2vulkan-runtime/src/blit.rs
+index 2af641b..fc02df0 100644
+--- a/crates/metal2vulkan-runtime/src/blit.rs
++++ b/crates/metal2vulkan-runtime/src/blit.rs
+@@ -568,3 +568,113 @@ impl BlitCommandEncoder {
+         core.end_with_replay(EncoderKind::Blit, None, log.map(Replay::Blit))
+     }
+ }
++
++
++/// Decoder for an experimental host step between ordered GPU transfer batches.
++pub type TextureCpuDecoder = Arc<dyn Fn(&[u8]) -> Result<Vec<u8>, String> + Send + Sync>;
++
++pub(super) struct CpuDecodedCall {
++    source: Buffer,
++    offset: u64,
++    length: u64,
++    destination: Texture,
++    region: super::values::Region,
++    output_row: u64,
++    output_length: u64,
++    decoder: TextureCpuDecoder,
++}
++
++pub(super) struct CpuDecodedUpload {
++    input: Buffer,
++    output: Buffer,
++    call: Arc<CpuDecodedCall>,
++}
++
++impl BlitCommandEncoder {
++    /// Copy source bytes in GPU order, decode after that batch completes, then upload
++    /// the decoded texels before later commands. The callback must issue no GPU work.
++    /// Input/output are bounded, retained, coherent Shared buffers made before the step.
++    pub fn copy_buffer_to_texture_decoded(&mut self, source: &Buffer, offset: u64,
++        length: u64, destination: &Texture, region: super::values::Region,
++        output_row: u64, output_length: u64, decoder: TextureCpuDecoder) -> Result<(), Error> {
++        let call = Arc::new(CpuDecodedCall { source: source.clone(), offset, length,
++            destination: destination.clone(), region, output_row, output_length, decoder });
++        self.log(|_| BlitCall::CpuDecodedUpload(Arc::clone(&call)));
++        self.record_cpu_decoded(call)
++    }
++
++    pub(super) fn record_cpu_decoded(&mut self, call: Arc<CpuDecodedCall>) -> Result<(), Error> {
++        use super::error::internal;
++        if call.length == 0 || call.output_length == 0 || call.length > 128<<20
++            || call.output_length > 128<<20 || call.offset.checked_add(call.length).is_none_or(|end| end > call.source.length()) {
++            return Err(internal("CPU-decoded texture upload bounds"));
++        }
++        self.core.check_device("copy_buffer_to_texture_decoded", call.source.device())?;
++        self.core.check_device("copy_buffer_to_texture_decoded", call.destination.device())?;
++        let input = self.core.device().own_buffer(call.length, ResourceOptions::shared())?;
++        let output = self.core.device().own_buffer(call.output_length, ResourceOptions::shared())?;
++        // These internal, ordinary shared buffers have no separate host/device mirror.
++        if input.contents() != input.device_contents() || output.contents() != output.device_contents() {
++            return Err(internal("CPU-decoded upload requires directly mapped coherent buffers"));
++        }
++        self.unlogged(|e| e.copy_from_buffer_to_buffer(&call.source,call.offset,&input,0,call.length))?;
++        self.core.defer(super::deferred::Deferred::CpuDecodedUpload(Arc::new(CpuDecodedUpload {input,output,call})))
++    }
++}
++
++impl CpuDecodedUpload {
++    pub(super) fn record(&self, command_buffer: &CommandBuffer) -> Result<super::encoder::RecordedSegment, Error> {
++        use super::error::internal;
++        // The scheduler completed all preceding GPU work, including the input copy.
++        // SAFETY: this retained coherent buffer has exactly call.length bytes and no
++        // later GPU writer. The host step runs once before the output batch is submitted.
++        let bytes = unsafe { std::slice::from_raw_parts(self.input.contents().ok_or_else(|| internal("CPU decode input mapping"))?.as_ptr(), self.call.length as usize) };
++        let decoded = (self.call.decoder)(bytes).map_err(|e| internal(&e))?;
++        if decoded.len() as u64 != self.call.output_length { return Err(internal("CPU decoder output length")); }
++        // SAFETY: output is retained, uniquely written by this host step, correctly sized,
++        // directly coherent-mapped, and its GPU read has not been submitted yet.
++        unsafe { std::ptr::copy_nonoverlapping(decoded.as_ptr(),self.output.contents().ok_or_else(|| internal("CPU decode output mapping"))?.as_ptr(),decoded.len()); }
++        let core = EncoderCore::segment(command_buffer,true)?;
++        let mut e = BlitCommandEncoder { core, pattern:None, shadows:Vec::new(), log:None };
++        let r = self.call.region;
++        e.copy_from_buffer_to_texture(&self.output,0,self.call.output_row,0,r.size,
++            &self.call.destination,0,0,r.origin,super::copy_plan::BlitOption::None)?;
++        e.core.end_segment()
++    }
++}
++
++/// Produce tightly packed rows after preceding GPU work completes; callback issues no GPU calls.
++pub type BufferCpuProducer = std::sync::Arc<dyn Fn()->Result<Vec<u8>,String> + Send + Sync>;
++pub(super) struct CpuBufferCall { destination:Buffer,offset:u64,row:u64,tight:u64,rows:u64,producer:BufferCpuProducer }
++pub(super) struct CpuBufferWrite { output:Buffer,call:Arc<CpuBufferCall> }
++impl BlitCommandEncoder {
++    /// Upload host-produced rows in command order, retaining gaps in the destination unchanged.
++    pub fn copy_host_rows_to_buffer(&mut self,destination:&Buffer,offset:u64,row:u64,tight:u64,rows:u64,producer:BufferCpuProducer)->Result<(),Error> {
++        let call=Arc::new(CpuBufferCall{destination:destination.clone(),offset,row,tight,rows,producer});
++        self.log(|_|BlitCall::CpuBufferWrite(Arc::clone(&call)));
++        self.record_cpu_buffer(call)
++    }
++    pub(super) fn record_cpu_buffer(&mut self,call:Arc<CpuBufferCall>)->Result<(),Error> {
++        use super::error::internal;
++        let length=call.tight.checked_mul(call.rows).ok_or_else(||internal("host rows length overflow"))?;
++        let end=call.rows.checked_sub(1).and_then(|n|call.row.checked_mul(n)).and_then(|n|n.checked_add(call.tight)).and_then(|n|call.offset.checked_add(n));
++        if call.tight==0 || call.row<call.tight || length>128<<20 || end.is_none_or(|n|n>call.destination.length()) {return Err(internal("host rows destination bounds"));}
++        self.core.check_device("copy_host_rows_to_buffer",call.destination.device())?;
++        let output=self.core.device().own_buffer(length,ResourceOptions::shared())?;
++        if output.contents()!=output.device_contents() {return Err(internal("host rows require coherent staging"));}
++        self.core.defer(super::deferred::Deferred::CpuBufferWrite(Arc::new(CpuBufferWrite{output,call})))
++    }
++}
++impl CpuBufferWrite {
++    pub(super) fn record(&self,command_buffer:&CommandBuffer)->Result<super::encoder::RecordedSegment,Error> {
++        use super::error::internal;
++        let bytes=(self.call.producer)().map_err(|e|internal(&e))?;
++        if bytes.len() as u64 != self.output.length() {return Err(internal("host rows producer length"));}
++        // SAFETY: coherent staging is retained and this ordered host step uniquely writes it before GPU reads.
++        unsafe {std::ptr::copy_nonoverlapping(bytes.as_ptr(),self.output.contents().ok_or_else(||internal("host rows mapping"))?.as_ptr(),bytes.len());}
++        let core=EncoderCore::segment(command_buffer,true)?;
++        let mut e=BlitCommandEncoder{core,pattern:None,shadows:Vec::new(),log:None};
++        for row in 0..self.call.rows {e.copy_from_buffer_to_buffer(&self.output,row*self.call.tight,&self.call.destination,self.call.offset+row*self.call.row,self.call.tight)?;}
++        e.core.end_segment()
++    }
++}
+diff --git a/crates/metal2vulkan-runtime/src/deferred.rs b/crates/metal2vulkan-runtime/src/deferred.rs
+index 53f7a9d..074bfc5 100644
+--- a/crates/metal2vulkan-runtime/src/deferred.rs
++++ b/crates/metal2vulkan-runtime/src/deferred.rs
+@@ -23,6 +23,8 @@ use std::sync::Arc;
+ /// Work an encoder left to record later: one segment's.
+ #[derive(Clone)]
+ pub(super) enum Deferred {
++    CpuDecodedUpload(Arc<super::blit::CpuDecodedUpload>),
++    CpuBufferWrite(Arc<super::blit::CpuBufferWrite>),
+     /// An indirect command buffer's execution (`indirect_execute.rs`).
+     Execute(Arc<Execute>),
+     /// An indirect dispatch, whose arguments the GPU may write (`indirect_dispatch.rs`).
+@@ -81,7 +83,7 @@ impl Deferred {
+     /// at the dispatch, and its writes are its encoder's to copy back.
+     pub(super) fn leaves_shadows(&self) -> bool {
+         match self {
+-            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) => true,
++            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) | Deferred::CpuDecodedUpload(_) | Deferred::CpuBufferWrite(_) => true,
+             Deferred::RenderPass(_) | Deferred::Pending(_) => false,
+         }
+     }
+@@ -99,7 +101,7 @@ impl Deferred {
+             Deferred::Execute(execute) => {
+                 execute.icb.gpu_written() || execute.indirect() || execute.predicated()
+             }
+-            Deferred::Dispatch(_) => true,
++            Deferred::Dispatch(_) | Deferred::CpuDecodedUpload(_) | Deferred::CpuBufferWrite(_) => true,
+             Deferred::SparseScrub(_) | Deferred::Pending(_) => false,
+             Deferred::RenderPass(pass) => pass.gpu_written(),
+         }
+@@ -122,6 +124,8 @@ impl Deferred {
+     ) -> Result<Prepared, Error> {
+         let device = command_buffer.device();
+         match self {
++            Deferred::CpuDecodedUpload(_) | Deferred::CpuBufferWrite(_) => Ok(Prepared { recorded:None, for_good:false,
++                inputs:StepInputs::None,retained:None,pipelines:false }),
+             Deferred::Execute(execute) if step => {
+                 // Inside a block of command predication its host step reads the counter first.
+                 let recorded = match execute.predicated() {
+@@ -264,6 +268,8 @@ impl Deferred {
+                 execute.record(command_buffer, Some(&states))
+             }
+             Deferred::Dispatch(dispatch) => dispatch.record(command_buffer),
++            Deferred::CpuDecodedUpload(upload) => upload.record(command_buffer),
++            Deferred::CpuBufferWrite(write) => write.record(command_buffer),
+             Deferred::SparseScrub(_) => Err(internal("a sparse scrub's host step")),
+             Deferred::RenderPass(pass) => pass.record(command_buffer, true),
+             Deferred::Pending(dispatch) => dispatch.record(command_buffer),
+@@ -275,7 +281,7 @@ impl Deferred {
+         match self {
+             Deferred::RenderPass(pass) => pass.making(),
+             Deferred::Pending(dispatch) => dispatch.making(),
+-            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) => false,
++            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) | Deferred::CpuDecodedUpload(_) | Deferred::CpuBufferWrite(_) => false,
+         }
+     }
+ 
+@@ -287,7 +293,7 @@ impl Deferred {
+         match self {
+             Deferred::RenderPass(pass) => pass.known_summary(device),
+             Deferred::Pending(dispatch) => Some(dispatch.known_summary()),
+-            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) => None,
++            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) | Deferred::CpuDecodedUpload(_) | Deferred::CpuBufferWrite(_) => None,
+         }
+     }
+ 
+@@ -296,7 +302,7 @@ impl Deferred {
+         match self {
+             Deferred::RenderPass(pass) => pass.when_made(waker),
+             Deferred::Pending(dispatch) => dispatch.when_made(waker),
+-            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) => {}
++            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) | Deferred::CpuDecodedUpload(_) | Deferred::CpuBufferWrite(_) => {}
+         }
+     }
+ 
+@@ -306,7 +312,7 @@ impl Deferred {
+         match self {
+             Deferred::RenderPass(pass) => pass.hasten(),
+             Deferred::Pending(dispatch) => dispatch.hasten(),
+-            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) => {}
++            Deferred::Execute(_) | Deferred::Dispatch(_) | Deferred::SparseScrub(_) | Deferred::CpuDecodedUpload(_) | Deferred::CpuBufferWrite(_) => {}
+         }
+     }
+ 
+@@ -315,7 +321,7 @@ impl Deferred {
+         match self {
+             Deferred::Execute(execute) => indirect_execute::degrade_host_replay(device, execute),
+             Deferred::Dispatch(dispatch) => dispatch.degrade(device),
+-            Deferred::SparseScrub(_) | Deferred::Pending(_) => {}
++            Deferred::SparseScrub(_) | Deferred::Pending(_) | Deferred::CpuDecodedUpload(_) | Deferred::CpuBufferWrite(_) => {}
+             Deferred::RenderPass(pass) => pass.degrade(device),
+         }
+     }
+diff --git a/crates/metal2vulkan-runtime/src/device/prime.rs b/crates/metal2vulkan-runtime/src/device/prime.rs
+index 91791ba..efbdf12 100644
+--- a/crates/metal2vulkan-runtime/src/device/prime.rs
++++ b/crates/metal2vulkan-runtime/src/device/prime.rs
+@@ -910,6 +910,14 @@ impl Primer<'_> {
+             }];
+             device.cmd_copy_buffer(recorded, buffer, buffer, &region);
+             self.made(Call::CmdCopyBuffer);
++            Barrier::everything().record(device, recorded);
++            device.cmd_update_buffer(recorded, buffer, 128, &[0u8; 4]);
++            self.made(Call::CmdUpdateBuffer);
++            Barrier::everything().record(device, recorded);
++            device.cmd_fill_buffer(recorded, buffer, 128, 4, 0);
++            self.made(Call::CmdFillBuffer);
++            Barrier::everything().record(device, recorded);
++
+             let region = [vk::BufferImageCopy::default()
+                 .image_subresource(vk::ImageSubresourceLayers {
+                     aspect_mask: vk::ImageAspectFlags::COLOR,
+@@ -963,6 +971,15 @@ impl Primer<'_> {
+             let general = vk::ImageLayout::GENERAL;
+             device.cmd_copy_image(recorded, image, general, image, general, &region);
+             self.made(Call::CmdCopyImage);
++            Barrier::everything().record(device, recorded);
++            let blit = [vk::ImageBlit::default()
++                .src_subresource(texel)
++                .src_offsets([vk::Offset3D::default(), vk::Offset3D { x: 1, y: 1, z: 1 }])
++                .dst_subresource(texel)
++                .dst_offsets([vk::Offset3D { x: 1, y: 0, z: 0 }, vk::Offset3D { x: 2, y: 1, z: 1 }])];
++            device.cmd_blit_image(recorded, image, general, image, general, &blit, vk::Filter::NEAREST);
++            self.made(Call::CmdBlitImage);
++
+             // A clear of the image after the copy, as a render host step's pass steps clear a
+             // sample plane or a stencil shadow (`render/pass_steps.rs`).
+             Barrier::everything().record(device, recorded);
+@@ -1123,6 +1140,13 @@ impl Primer<'_> {
+             self.made(Call::CmdDrawIndexed);
+             device.cmd_draw_indexed_indirect(draws, buffer, 0, 1, 20);
+             self.made(Call::CmdDrawIndexedIndirect);
++            let clears = [vk::ClearAttachment::default()
++                .aspect_mask(vk::ImageAspectFlags::COLOR)
++                .color_attachment(0)
++                .clear_value(vk::ClearValue { color: vk::ClearColorValue::default() })];
++            let rects = [vk::ClearRect::default().rect(area).base_array_layer(0).layer_count(1)];
++            device.cmd_clear_attachments(draws, &clears, &rects);
++            self.made(Call::CmdClearAttachments);
+             device.cmd_end_query(draws, queries, 0);
+             self.made(Call::CmdEndQuery);
+             device.end_command_buffer(draws).map_err(vulkan)?;
+@@ -1141,6 +1165,11 @@ impl Primer<'_> {
+             self.made(Call::CmdExecuteCommands);
+             device.cmd_end_render_pass(recorded);
+             self.made(Call::CmdEndRenderPass);
++            Barrier::everything().record(device, recorded);
++            device.cmd_copy_query_pool_results(recorded, queries, 0, 1, buffer, 128, 8,
++                vk::QueryResultFlags::TYPE_64 | vk::QueryResultFlags::WAIT);
++            self.made(Call::CmdCopyQueryPoolResults);
++
+         }
+         Ok(())
+     }
+diff --git a/crates/metal2vulkan-runtime/src/exit_guard.rs b/crates/metal2vulkan-runtime/src/exit_guard.rs
+index aebbe67..b0e4fdf 100644
+--- a/crates/metal2vulkan-runtime/src/exit_guard.rs
++++ b/crates/metal2vulkan-runtime/src/exit_guard.rs
+@@ -337,6 +337,11 @@ calls! {
+     CmdPushConstants => c"vkCmdPushConstants",
+     CmdDispatch => c"vkCmdDispatch",
+     CmdCopyBuffer => c"vkCmdCopyBuffer",
++    CmdUpdateBuffer => c"vkCmdUpdateBuffer",
++    CmdFillBuffer => c"vkCmdFillBuffer",
++    CmdBlitImage => c"vkCmdBlitImage",
++    CmdClearAttachments => c"vkCmdClearAttachments",
++    CmdCopyQueryPoolResults => c"vkCmdCopyQueryPoolResults",
+     CmdCopyBufferToImage => c"vkCmdCopyBufferToImage",
+     CmdCopyImageToBuffer => c"vkCmdCopyImageToBuffer",
+     // A sparse batch's copy of a move's texels (`sparse/emulated.rs`).
+@@ -411,6 +416,11 @@ pub(crate) const HOST_STEP: &[Call] = &[
+     Call::CmdPushConstants,
+     Call::CmdDispatch,
+     Call::CmdCopyBuffer,
++    Call::CmdUpdateBuffer,
++    Call::CmdFillBuffer,
++    Call::CmdBlitImage,
++    Call::CmdClearAttachments,
++    Call::CmdCopyQueryPoolResults,
+     Call::CmdCopyBufferToImage,
+     Call::CmdCopyImageToBuffer,
+     Call::CreateDescriptorPool,
+diff --git a/crates/metal2vulkan-runtime/src/gpu_pools.rs b/crates/metal2vulkan-runtime/src/gpu_pools.rs
+index 8b86801..b990e97 100644
+--- a/crates/metal2vulkan-runtime/src/gpu_pools.rs
++++ b/crates/metal2vulkan-runtime/src/gpu_pools.rs
+@@ -171,6 +171,10 @@ impl Drop for PoolLease {
+         let shared = self.device.shared();
+         let released = lock(shared.gpu_pools.spare(self.kind)).give(block, self.bytes);
+         if let Some(block) = released {
++            // The completion handler may return this lease without an outer section.
++            let Some(_busy) = crate::exit_guard::enter() else {
++                return;
++            };
+             // SAFETY: a lease ends when its command buffer completes or is dropped unsubmitted,
+             // and the spare is leased to none, so no command uses either block.
+             unsafe { block.release(shared.vk(), &shared.memory) };
+diff --git a/crates/metal2vulkan-runtime/src/mipmap_scratch.rs b/crates/metal2vulkan-runtime/src/mipmap_scratch.rs
+index ece7278..295ea20 100644
+--- a/crates/metal2vulkan-runtime/src/mipmap_scratch.rs
++++ b/crates/metal2vulkan-runtime/src/mipmap_scratch.rs
+@@ -142,6 +142,11 @@ impl Drop for Lease {
+         let shared = self.device.shared();
+         let released = lock(&shared.mipmap_scratch).give(block, self.size);
+         if let Some(block) = released {
++            // Obtain the checked device functions only inside the release section.
++            // Completion handlers return leases on a runtime thread with no outer section.
++            let Some(_busy) = crate::exit_guard::enter() else {
++                return;
++            };
+             // SAFETY: a lease ends when its command buffer completes or is dropped unsubmitted,
+             // and the spare is leased to none, so no command uses either block.
+             unsafe { block.release(shared.vk(), &shared.memory) };
+@@ -149,6 +154,45 @@ impl Drop for Lease {
+     }
+ }
+ 
++#[cfg(all(test, m2v_gpu))]
++mod handler_guard_tests {
++    use super::*;
++
++    #[test]
++    fn guarded_scratch_return_on_runtime_thread() {
++        for sizes in [[4096,8192], [8192,4096]] {
++            let device=Device::system_default().expect("Vulkan device");
++            let a=device.mipmap_scratch(sizes[0]).unwrap().unwrap();
++            let b=device.mipmap_scratch(sizes[1]).unwrap().unwrap();
++            let largest=if sizes[0]>sizes[1] {a.raw()} else {b.raw()};
++            crate::exit_guard::spawn(std::thread::Builder::new().name("scratch-return-regression".into()), move || {
++                assert!(!crate::exit_guard::may_call(), "must exercise an unguarded runtime thread");
++                drop(a); // Becomes spare.
++                drop(b); // Releases either the smaller return or the smaller spare.
++                assert!(!crate::exit_guard::may_call(), "release section must have ended");
++            }).unwrap().join().unwrap();
++            let reused=device.mipmap_scratch(8192).unwrap().unwrap();
++            assert_eq!(reused.raw(),largest,"largest spare retained");
++        }
++    }
++
++    #[test]
++    fn guarded_gpu_pool_return_on_runtime_thread() {
++        let device=Device::system_default().expect("Vulkan device");
++        for kind in [crate::gpu_pools::PoolKind::Index, crate::gpu_pools::PoolKind::MeshRecords] {
++            let a=device.lease_pool(kind).unwrap();
++            let b=device.lease_pool(kind).unwrap();
++            let kept=a.raw();
++            crate::exit_guard::spawn(std::thread::Builder::new().name("pool-return-regression".into()),move || {
++                assert!(!crate::exit_guard::may_call());
++                drop(a);drop(b);
++                assert!(!crate::exit_guard::may_call());
++            }).unwrap().join().unwrap();
++            assert_eq!(device.lease_pool(kind).unwrap().raw(),kept);
++        }
++    }
++}
++
+ impl Device {
+     /// A lease of a scratch block of at least `need` bytes for a mipmap filter chain (the module
+     /// docs); `None` where the device's memory has no room for it.
+diff --git a/crates/metal2vulkan-runtime/src/owned_kernel.rs b/crates/metal2vulkan-runtime/src/owned_kernel.rs
+index d2968cf..9597a35 100644
+--- a/crates/metal2vulkan-runtime/src/owned_kernel.rs
++++ b/crates/metal2vulkan-runtime/src/owned_kernel.rs
+@@ -75,7 +75,7 @@ pub(super) enum OwnedModule {
+     /// `bind::ycbcr_convert_module`: a YCbCr texture's texels converted from its surface's two
+     /// planes into its image (`ycbcr.rs`), which it binds as a storage image: converted values,
+     /// or (`YCbCrOutput::Codes`) the packed codes.
+-    YCbCrConvert(YCbCrOutput),
++    YCbCrConvert(YCbCrOutput, bool),
+     /// `bind::two_plane_texels_module`: a heap's two-plane extended-range texture's texels moved
+     /// between its image and its two planes in the heap's bytes (`texture/heap_two_planes.rs`).
+     TwoPlaneTexels,
+@@ -129,7 +129,7 @@ impl OwnedModule {
+     /// The module's storage-image bindings, which come after its sampled images.
+     fn storage_images(self) -> u32 {
+         match self {
+-            OwnedModule::YCbCrConvert(_) | OwnedModule::YCbCrWrite => 1,
++            OwnedModule::YCbCrConvert(..) | OwnedModule::YCbCrWrite => 1,
+             OwnedModule::ExtendedShadowLoad(_) => 2,
+             _ => 0,
+         }
+@@ -207,9 +207,9 @@ impl OwnedModule {
+                     .map_err(Error::Compile)?;
+                 Ok((module.spirv.to_vec(), 5, 0))
+             }
+-            OwnedModule::YCbCrConvert(output) => {
++            OwnedModule::YCbCrConvert(output,float_codes) => {
+                 let module =
+-                    metal2vulkan::bind::ycbcr_convert_module(device.compile_device(), output)
++                    if float_codes { metal2vulkan::bind::ycbcr_convert_render_codes_module(device.compile_device()) } else { metal2vulkan::bind::ycbcr_convert_module(device.compile_device(), output) }
+                         .map_err(Error::Compile)?;
+                 Ok((module.spirv.to_vec(), 2, 0))
+             }
+@@ -332,7 +332,7 @@ pub(super) struct OwnedKernels {
+     plane_copy: Option<OwnedKernel>,
+     index_rewrites: HashMap<(RewriteProgram, RewritePhase), OwnedKernel>,
+     rotate_texels: Option<OwnedKernel>,
+-    ycbcr_converts: HashMap<YCbCrOutput, OwnedKernel>,
++    ycbcr_converts: HashMap<(YCbCrOutput,bool), OwnedKernel>,
+     two_plane_texels: Option<OwnedKernel>,
+     plane_bytes_copy: Option<OwnedKernel>,
+     ycbcr_write: Option<OwnedKernel>,
+@@ -392,7 +392,7 @@ impl OwnedKernels {
+             OwnedModule::IndexRewrite(program, phase) => {
+                 self.index_rewrites.get(&(program, phase)).copied()
+             }
+-            OwnedModule::YCbCrConvert(output) => self.ycbcr_converts.get(&output).copied(),
++            OwnedModule::YCbCrConvert(output,float_codes) => self.ycbcr_converts.get(&(output,float_codes)).copied(),
+             OwnedModule::UnusedBits(form, words) => self.unused_bits.get(&(form, words)).copied(),
+             OwnedModule::CompressedBlit(rule) => self.compressed_blits.get(&rule).copied(),
+             OwnedModule::ExtendedShadowLoad(form) => self.extended_shadow_loads.get(&form).copied(),
+@@ -410,8 +410,8 @@ impl OwnedKernels {
+             OwnedModule::IndexRewrite(program, phase) => {
+                 self.index_rewrites.insert((program, phase), kernel);
+             }
+-            OwnedModule::YCbCrConvert(output) => {
+-                self.ycbcr_converts.insert(output, kernel);
++            OwnedModule::YCbCrConvert(output,float_codes) => {
++                self.ycbcr_converts.insert((output,float_codes), kernel);
+             }
+             OwnedModule::UnusedBits(form, words) => {
+                 self.unused_bits.insert((form, words), kernel);
+@@ -447,7 +447,7 @@ impl OwnedKernels {
+             OwnedModule::ShadowMerge => &mut self.shadow_merge,
+             OwnedModule::MipmapFilter(_)
+             | OwnedModule::IndexRewrite(..)
+-            | OwnedModule::YCbCrConvert(_)
++            | OwnedModule::YCbCrConvert(..)
+             | OwnedModule::UnusedBits(..)
+             | OwnedModule::CompressedBlit(_)
+             | OwnedModule::ExtendedShadowLoad(_)
+diff --git a/crates/metal2vulkan-runtime/src/render_pass.rs b/crates/metal2vulkan-runtime/src/render_pass.rs
+index 55c2602..fe718ec 100644
+--- a/crates/metal2vulkan-runtime/src/render_pass.rs
++++ b/crates/metal2vulkan-runtime/src/render_pass.rs
+@@ -1250,8 +1250,8 @@ pub(super) fn layout(
+         // it to the pass (`DontCare`), stores it, and resolves nothing: a load (its texels then
+         // the planes' converted reads), another store and a resolve are not measured.
+         if ycbcr_renders(texture.pixel_format())
+-            && (color.load_action == LoadAction::Load
+-                || color.store_action != StoreAction::Store
++            && ((color.load_action == LoadAction::Load && texture.pixel_format()!=PixelFormat::RGB84442P)
++                || (color.store_action != StoreAction::Store && !(texture.pixel_format()==PixelFormat::RGB84442P && color.store_action==StoreAction::DontCare))
+                 || color.resolve_texture.is_some()
+                 || color.store_action_options != StoreActionOptions::NONE)
+         {
+diff --git a/crates/metal2vulkan-runtime/src/replay.rs b/crates/metal2vulkan-runtime/src/replay.rs
+index ac88d6e..d371d0d 100644
+--- a/crates/metal2vulkan-runtime/src/replay.rs
++++ b/crates/metal2vulkan-runtime/src/replay.rs
+@@ -54,6 +54,7 @@ use crate::copy_plan::BlitOption;
+ use metal2vulkan::metal::{BarrierScope, DispatchType, PixelFormat, ResourceUsage};
+ use std::cell::Cell;
+ use std::ops::Range;
++use std::sync::Arc;
+ 
+ /// A run of elements in one of a log's arenas.
+ #[derive(Clone, Copy)]
+@@ -289,6 +290,8 @@ pub(super) struct SamplersWithLodClamps {
+ 
+ /// One public call of a blit encoder, its arguments owned (the method of each variant's name).
+ pub(super) enum BlitCall {
++    CpuDecodedUpload(Arc<super::blit::CpuDecodedCall>),
++    CpuBufferWrite(Arc<super::blit::CpuBufferCall>),
+     CopyBufferToBuffer(Buffer, u64, Buffer, u64, u64),
+     FillBuffer(Buffer, Range<u64>, u8),
+     FillBufferPattern4(Buffer, Range<u64>, u32),
+@@ -570,6 +573,8 @@ fn blit(
+ ) -> Result<(), Error> {
+     use BlitCall as B;
+     match call {
++        B::CpuDecodedUpload(call) => encoder.record_cpu_decoded(Arc::clone(call)),
++        B::CpuBufferWrite(call) => encoder.record_cpu_buffer(Arc::clone(call)),
+         B::CopyBufferToBuffer(source, source_offset, destination, destination_offset, size) => {
+             encoder.copy_from_buffer_to_buffer(
+                 source,
+diff --git a/crates/metal2vulkan-runtime/src/shadow.rs b/crates/metal2vulkan-runtime/src/shadow.rs
+index 601016e..60012ae 100644
+--- a/crates/metal2vulkan-runtime/src/shadow.rs
++++ b/crates/metal2vulkan-runtime/src/shadow.rs
+@@ -189,6 +189,8 @@ pub(super) enum ShadowSource {
+         image: vk::Image,
+         /// The copy back's staging buffer, kernel and dispatch (boxed, as `Converted`'s).
+         write_back: Box<YCbCrWriteBack>,
++        /// Optional preserved RGB contents loaded from the planes before rendering.
++        read_back: Option<Box<YCbCrConversion>>,
+         /// The texture's format, which a refusal names.
+         pixel_format: PixelFormat,
+     },
+@@ -512,7 +514,7 @@ impl ShadowCopy {
+             Step::Keep(_) if tiled => {
+                 vk::PipelineStageFlags2::TRANSFER | vk::PipelineStageFlags2::COMPUTE_SHADER
+             }
+-            Step::Into if converted => {
++            Step::Into if converted || matches!(&self.copies.source, ShadowSource::YCbCrWrite { read_back:Some(_),.. }) => {
+                 vk::PipelineStageFlags2::TRANSFER | vk::PipelineStageFlags2::COMPUTE_SHADER
+             }
+             Step::Back if encoded => {
+@@ -542,8 +544,9 @@ impl ShadowCopy {
+                 Step::Back | Step::Keep(_) | Step::Merge(_) => Vec::new(),
+             };
+         }
+-        if let ShadowSource::YCbCrWrite { write_back, .. } = &c.source {
++        if let ShadowSource::YCbCrWrite { write_back, read_back, .. } = &c.source {
+             return match &self.step {
++                Step::Into if read_back.is_some() => read_back.as_ref().unwrap().uses(Use::reads(truth,c.tracked,range,read),c),
+                 // A clear of every texel: nothing of the truth is read.
+                 Step::Into => vec![Use::writes(
+                     c.shadow_key,
+@@ -612,9 +615,15 @@ impl ShadowCopy {
+                 buffer,
+                 image,
+                 write_back,
++                read_back,
+                 ..
+             } => {
+                 if into_shadow {
++                    if let Some(conversion)=read_back {
++                        // SAFETY: same tracked source/image lifetime and ordering as Converted.
++                        unsafe { conversion.record(device,command_buffer,buffer.raw()) };
++                        return;
++                    }
+                     let range = vk::ImageSubresourceRange {
+                         aspect_mask: vk::ImageAspectFlags::COLOR,
+                         base_mip_level: 0,
+diff --git a/crates/metal2vulkan-runtime/src/tests/exit_guard.rs b/crates/metal2vulkan-runtime/src/tests/exit_guard.rs
+index 367d60a..205771b 100644
+--- a/crates/metal2vulkan-runtime/src/tests/exit_guard.rs
++++ b/crates/metal2vulkan-runtime/src/tests/exit_guard.rs
+@@ -1461,3 +1461,12 @@ fn the_process_is_not_exiting_while_its_tests_run() {
+     assert!(!crate::process_exiting());
+     assert_eq!(crate::process_exiting(), exit_guard::closed());
+ }
++
++#[test]
++fn scheduler_buffer_writes_are_guarded_and_primed() {
++    for call in [Call::CmdUpdateBuffer, Call::CmdFillBuffer, Call::CmdBlitImage, Call::CmdClearAttachments, Call::CmdCopyQueryPoolResults] {
++        assert!(Call::ALL.contains(&call));
++        assert!(crate::exit_guard::HOST_STEP.contains(&call));
++        assert!(!crate::device::prime::UNPRIMED.contains(&call));
++    }
++}
+diff --git a/crates/metal2vulkan-runtime/src/texture/ycbcr_image.rs b/crates/metal2vulkan-runtime/src/texture/ycbcr_image.rs
+index 9c67ea3..45c300f 100644
+--- a/crates/metal2vulkan-runtime/src/texture/ycbcr_image.rs
++++ b/crates/metal2vulkan-runtime/src/texture/ycbcr_image.rs
+@@ -334,6 +334,7 @@ impl Texture {
+                 alias: texels.buffer.alias().map(|alias| alias.key),
+                 image: image.raw.get(),
+                 write_back: Box::new(write_back),
++                read_back: None,
+                 pixel_format: pf,
+             },
+             shadow_key: image.identity.key,
+@@ -453,6 +454,14 @@ impl Texture {
+         })?;
+         let (raw, at) = texels.buffer.at(span.start);
+         let write_back = YCbCrWriteBack::new(device, (&planes, span.clone()), at, (view, true))?;
++        let read_back=if pf==PixelFormat::RGB84442P {
++            let read_view=image.view(&VkView {
++                view_type:ImageViewType::TYPE_2D,format:Format::R32G32B32A32_SFLOAT,
++                components:ComponentMapping::IDENTITY,aspect:ImageAspectFlags::COLOR,
++                base_level:0,level_count:1,base_layer:0,layer_count:1,usage:ImageUsageFlags::STORAGE,
++            })?;
++            Some(Box::new(YCbCrConversion::new_render_codes(device,(&planes,span.clone()),at,read_view)?))
++        } else {None};
+         let (bytes, tracked) = texels.buffer.tracked(span);
+         let copies = ShadowCopies {
+             source: ShadowSource::YCbCrWrite {
+@@ -462,6 +471,7 @@ impl Texture {
+                 alias: texels.buffer.alias().map(|alias| alias.key),
+                 image: image.raw.get(),
+                 write_back: Box::new(write_back),
++                read_back,
+                 pixel_format: pf,
+             },
+             shadow_key: image.identity.key,
+diff --git a/crates/metal2vulkan-runtime/src/ycbcr.rs b/crates/metal2vulkan-runtime/src/ycbcr.rs
+index 368d62e..84f664c 100644
+--- a/crates/metal2vulkan-runtime/src/ycbcr.rs
++++ b/crates/metal2vulkan-runtime/src/ycbcr.rs
+@@ -207,6 +207,8 @@ pub struct IoSurfaceYCbCr {
+     pub chroma_bytes_per_row: u64,
+     /// The surface's `kIOSurfaceYCbCrMatrix` as the texture is made, `None` without one.
+     pub matrix: Option<SurfaceYCbCrMatrix>,
++    /// Optional IOSurface plane dimensions and bytes per element, in plane order.
++    pub plane_shapes: Option<[[u64; 3]; 2]>,
+ }
+ 
+ impl IoSurfaceYCbCr {
+@@ -226,9 +228,16 @@ impl IoSurfaceYCbCr {
+             chroma_offset,
+             chroma_bytes_per_row,
+             matrix: None,
++            plane_shapes: None,
+         }
+     }
+ 
++    /// Attach the actual IOSurface plane geometry, without inferring it from a private OSType.
++    pub const fn with_plane_shapes(mut self, shapes: [[u64; 3]; 2]) -> Self {
++        self.plane_shapes = Some(shapes);
++        self
++    }
++
+     /// These facts with the surface's `kIOSurfaceYCbCrMatrix`.
+     pub const fn with_matrix(mut self, matrix: SurfaceYCbCrMatrix) -> IoSurfaceYCbCr {
+         self.matrix = Some(matrix);
+@@ -271,6 +280,17 @@ fn refused(pf: PixelFormat, what: String) -> Error {
+     Error::Unsupported(Unsupported::not_implemented(Feature::Format).naming(DiagName::new(named)))
+ }
+ 
++/// Only the raw RGB format whose channel layout is independently measured may
++/// use this private surface identifier, with both planes explicitly described.
++fn rgb444_plane_layout(pf: PixelFormat, surface: &IoSurfaceYCbCr) -> bool {
++    let [w, h] = surface.size;
++    pf == PixelFormat::RGB84442P
++        && surface.pixel_format == u32::from_be_bytes(*b"_RB4")
++        && surface.plane == 0
++        && w != 0 && h != 0
++        && surface.plane_shapes == Some([[w, h, 1], [w, h, 2]])
++}
++
+ /// The planes of a two-plane YCbCr texture of `layout` (checked; a format `metal::format::ycbcr`
+ /// holds) over `surface`, its luma plane at `luma` (offset, bytes per row) of a buffer of
+ /// `length` bytes on `device`: the planes as the conversion reads them from the span's first
+@@ -303,7 +323,14 @@ pub(super) fn surface_planes(
+         u32::from_be_bytes(*code) == surface.pixel_format
+             && (bits, packed) == (codes.bits, codes.packed)
+     });
+-    let Some(&(_, _, _, range, chroma)) = measured else {
++    // RGB542 itself defines raw G and interleaved B/R codes. For the private
++    // _RB4 tag, require the caller's actual full-size 8/16-bit plane geometry;
++    // do not infer a YCbCr matrix, subsampling or packing from the private name.
++    let (range, chroma) = if let Some(&(_, _, _, range, chroma)) = measured {
++        (range, chroma)
++    } else if rgb444_plane_layout(pf, surface) {
++        (YCbCrRange::Full, ChromaSubsampling::Chroma444)
++    } else {
+         return Err(refused(format!("over a surface of OSType '{}'", code())));
+     };
+     let plane_one = match surface.plane {
+@@ -429,6 +456,13 @@ impl YCbCrConversion {
+         at: u64,
+         view: vk::ImageView,
+     ) -> Result<YCbCrConversion, Error> {
++        Self::new_mode(device,(planes,bytes_in),at,view,false)
++    }
++    /// Normalize RGB code planes into a float render shadow without applying a YCbCr matrix.
++    pub(super) fn new_render_codes(device:&Device,source:(&YCbCrPlanes,Range<u64>),at:u64,view:vk::ImageView)->Result<Self,Error> {
++        Self::new_mode(device,source,at,view,true)
++    }
++    fn new_mode(device:&Device,(planes,bytes_in):(&YCbCrPlanes,Range<u64>),at:u64,view:vk::ImageView,float_codes:bool)->Result<Self,Error> {
+         let span = bytes_in.end - bytes_in.start;
+         let bytes = span.next_multiple_of(4);
+         // The chroma bytes the planes read past their span, zeros (a texture over plane 1,
+@@ -443,7 +477,7 @@ impl YCbCrConversion {
+         let (raw, start) = staging.at(0);
+         let (identity, range) = staging.tracked(0..BYTES_AT + held);
+         let shape = YCbCrConvertModule::shape(planes);
+-        let kernel = device.owned_kernel(OwnedModule::YCbCrConvert(planes.codes.output))?;
++        let kernel = device.owned_kernel(OwnedModule::YCbCrConvert(planes.codes.output,float_codes))?;
+         let set = OwnedSet {
+             images: Vec::new(),
+             storage_images: vec![view],
+@@ -744,3 +778,23 @@ impl YCbCrWriteBack {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod rgb444_layout_tests {
++    use super::*;
++    #[test]
++    fn private_rgb444_requires_explicit_matching_raw_planes() {
++        let valid = IoSurfaceYCbCr::new(u32::from_be_bytes(*b"_RB4"), 0, [7, 3], 64, 16)
++            .with_plane_shapes([[7, 3, 1], [7, 3, 2]]);
++        assert!(rgb444_plane_layout(PixelFormat::RGB84442P, &valid));
++        for shapes in [None, Some([[7,3,2],[7,3,2]]), Some([[7,3,1],[4,3,2]]), Some([[7,3,1],[7,2,2]])] {
++            let mut bad=valid; bad.plane_shapes=shapes;
++            assert!(!rgb444_plane_layout(PixelFormat::RGB84442P,&bad));
++        }
++        assert!(!rgb444_plane_layout(PixelFormat::YCBCR84442P,&valid));
++        let mut bad=valid; bad.plane=1;
++        assert!(!rgb444_plane_layout(PixelFormat::RGB84442P,&bad));
++        bad=valid; bad.pixel_format=u32::from_be_bytes(*b"????");
++        assert!(!rgb444_plane_layout(PixelFormat::RGB84442P,&bad));
++    }
++}
+diff --git a/crates/metal2vulkan/src/bind/mod.rs b/crates/metal2vulkan/src/bind/mod.rs
+index fbe49f3..324a954 100644
+--- a/crates/metal2vulkan/src/bind/mod.rs
++++ b/crates/metal2vulkan/src/bind/mod.rs
+@@ -268,7 +268,7 @@ pub use visibility_resolve::{
+     visibility_resolve_module, VisibilityResolve, VisibilityResolveModule,
+ };
+ pub use ycbcr_convert::{
+-    ycbcr_convert_module, ycbcr_read, ycbcr_texel, YCbCrCodes, YCbCrConvertModule, YCbCrMatrix,
++    ycbcr_convert_module, ycbcr_convert_render_codes_module, ycbcr_read, ycbcr_texel, YCbCrCodes, YCbCrConvertModule, YCbCrMatrix,
+     YCbCrOutput, YCbCrPlanes, YCbCrRange,
+ };
+ pub use ycbcr_write::{ycbcr_store, ycbcr_write, ycbcr_write_module, YCbCrWriteModule};
+diff --git a/crates/metal2vulkan/src/bind/plan/resources.rs b/crates/metal2vulkan/src/bind/plan/resources.rs
+index 2aaa62b..e61916a 100644
+--- a/crates/metal2vulkan/src/bind/plan/resources.rs
++++ b/crates/metal2vulkan/src/bind/plan/resources.rs
+@@ -1022,7 +1022,7 @@ impl ResourcePlanner<'_> {
+         // (`StorageImageClass::HalfBits`): the slot is declared of the alias's numeric type, as
+         // its neutral is.
+         let base = match choice {
+-            Some((c, _)) if c.class == StorageImageClass::HalfBits => ImageHandleClass {
++            Some((c, _)) if matches!(c.class, StorageImageClass::HalfBits | StorageImageClass::Rgb9e5Bits) => ImageHandleClass {
+                 sampled_type: SampledType::Uint,
+                 ..base
+             },
+diff --git a/crates/metal2vulkan/src/bind/ycbcr_convert.rs b/crates/metal2vulkan/src/bind/ycbcr_convert.rs
+index c6cbb47..0be9f4c 100644
+--- a/crates/metal2vulkan/src/bind/ycbcr_convert.rs
++++ b/crates/metal2vulkan/src/bind/ycbcr_convert.rs
+@@ -683,7 +683,9 @@ impl Cx {
+ /// The module of `output` as a typed module, before serialization: the module
+ /// [`ycbcr_convert_module`] serializes, which the CPU interpreter runs. Its bindings are the
+ /// symbols `IMAGE`, `SHAPE` and `BYTES` (the module docs).
+-fn typed_module(output: YCbCrOutput) -> BResult<TypedModule> {
++fn typed_module(output: YCbCrOutput) -> BResult<TypedModule> { typed_module_with_float_codes(output,false) }
++
++fn typed_module_with_float_codes(output: YCbCrOutput, float_codes: bool) -> BResult<TypedModule> {
+     let mut b = ModuleBuilder::new();
+     let u32_ = b.ty(Type::Int {
+         width: 32,
+@@ -695,6 +697,7 @@ fn typed_module(output: YCbCrOutput) -> BResult<TypedModule> {
+     let (sampled_type, format) = match output {
+         YCbCrOutput::Converted => (f32_, crate::spv::ImageFormat::Rgba16f),
+         YCbCrOutput::Srgb => (f32_, crate::spv::ImageFormat::Rgba32f),
++        YCbCrOutput::Codes if float_codes => (f32_, crate::spv::ImageFormat::Rgba32f),
+         YCbCrOutput::Codes => (u32_, crate::spv::ImageFormat::R32ui),
+     };
+     let texel_ty = b.ty(Type::Vector {
+@@ -814,6 +817,16 @@ fn typed_module(output: YCbCrOutput) -> BResult<TypedModule> {
+         }
+         let coord = f.composite_construct(uvec2, &[x, y])?;
+         let texel = match output {
++            YCbCrOutput::Codes if float_codes => {
++                let maximum=f.convert(ConvOp::ConvertUToF,max,f32_)?;
++                let mut channels=Vec::new();
++                for code in [chroma[1],luma,chroma[0]] {
++                    let value=f.convert(ConvOp::ConvertUToF,code,f32_)?;
++                    channels.push(f.binary(BinOp::FDiv,value,maximum)?);
++                }
++                channels.push(scalar(f,f32_,u64::from(1.0f32.to_bits()))?);
++                f.composite_construct(texel_ty,&channels)?
++            }
+             YCbCrOutput::Codes => {
+                 // `A2B10G10R10_UNORM_PACK32`'s or `R8G8B8A8_UNORM`'s bits, `b` each: red Cr,
+                 // green Y, blue Cb, and alpha every bit above (3 of 10-bit codes, 255 of 8-bit).
+@@ -929,8 +942,16 @@ pub fn ycbcr_convert_module(
+     device: &Device,
+     output: YCbCrOutput,
+ ) -> Result<YCbCrConvertModule, Error> {
++    convert_module(device,output,false)
++}
++
++/// RGB code planes normalized into float render attachment values for preserved-content passes.
++pub fn ycbcr_convert_render_codes_module(device:&Device)->Result<YCbCrConvertModule,Error> {
++    convert_module(device,YCbCrOutput::Codes,true)
++}
++fn convert_module(device:&Device,output:YCbCrOutput,float_codes:bool)->Result<YCbCrConvertModule,Error> {
+     let profile = device.profile();
+-    let m = typed_module(output)?;
++    let m = typed_module_with_float_codes(output,float_codes)?;
+     let mut meter = Meter::new(&Budget::default());
+     crate::spirv::verify::verify(&m, profile, &mut meter)?;
+     let r = crate::spirv::serialize::serialize(m)?;
+diff --git a/crates/metal2vulkan/src/cache/mod.rs b/crates/metal2vulkan/src/cache/mod.rs
+index c89e58f..0bdc601 100644
+--- a/crates/metal2vulkan/src/cache/mod.rs
++++ b/crates/metal2vulkan/src/cache/mod.rs
+@@ -60,7 +60,7 @@ mod tests;
+ /// unchanged version, and its bless records the version. Independent of the crate's version and of
+ /// [`ARTIFACT_FORMAT_VERSION`]. The commit that bumps it says what changed; this comment keeps no
+ /// history.
+-pub const SEMANTICS_VERSION: u32 = 1694;
++pub const SEMANTICS_VERSION: u32 = 1695;
+ 
+ /// The byte-layout version of encoded artifacts (`CompiledFunction::to_bytes` and the
+ /// [`PipelineArtifact`] encodings). Every encoded artifact carries it, and a decode under another
+diff --git a/crates/metal2vulkan/src/error/mod.rs b/crates/metal2vulkan/src/error/mod.rs
+index a0714a9..ba1bfab 100644
+--- a/crates/metal2vulkan/src/error/mod.rs
++++ b/crates/metal2vulkan/src/error/mod.rs
+@@ -342,7 +342,12 @@ pub struct Unsupported {
+ 
+ impl Unsupported {
+     /// Not implemented by this translator version on any device.
++    #[track_caller]
+     pub fn not_implemented(feature: Feature) -> Unsupported {
++        if feature == Feature::Format && std::env::var_os("METAL2VULKAN_TRACE_FORMAT_REFUSAL").as_deref() == Some(std::ffi::OsStr::new("1")) {
++            let at=std::panic::Location::caller();
++            eprintln!("format-refusal site {}:{}:{}",at.file(),at.line(),at.column());
++        }
+         Unsupported {
+             feature,
+             needs: Needs::NotImplemented,
+diff --git a/crates/metal2vulkan/src/lower/fragment/fetch.rs b/crates/metal2vulkan/src/lower/fragment/fetch.rs
+index 02c2d1f..a6cfeaa 100644
+--- a/crates/metal2vulkan/src/lower/fragment/fetch.rs
++++ b/crates/metal2vulkan/src/lower/fragment/fetch.rs
+@@ -1853,7 +1853,7 @@ pub(super) fn emit_return(
+                         let (image, at, ops) = image_and_texel(cx, fb, color, sc.view.samples)?;
+                         let mem = memory_model::coherence(cx.plan).texel(fb)?;
+                         let destination = fb.read(image, at, &ops, mem)?;
+-                        source_over::emit(fb, part, destination)?
++                        source_over::emit(fb, part, destination, sc.view.format != vk::Format::R16G16B16A16_SFLOAT)?
+                     }
+                     Some(eq) => half_blended(cx, fb, color, &sc, eq, part)?,
+                     None => part,
+diff --git a/crates/metal2vulkan/src/lower/fragment/fetch/source_over.rs b/crates/metal2vulkan/src/lower/fragment/fetch/source_over.rs
+index e7612e3..cb7ce51 100644
+--- a/crates/metal2vulkan/src/lower/fragment/fetch/source_over.rs
++++ b/crates/metal2vulkan/src/lower/fragment/fetch/source_over.rs
+@@ -16,7 +16,7 @@ use crate::vk;
+ pub(super) fn accepts(format: vk::Format, equation: BlendEquation) -> bool {
+     format
+         .block()
+-        .is_some_and(|b| b.color == Some(vk::NumericFormat::Unorm))
++        .is_some_and(|b| b.color == Some(vk::NumericFormat::Unorm) || format == vk::Format::R16G16B16A16_SFLOAT)
+         && equation.source_rgb == BlendFactor::One
+         && equation.destination_rgb == BlendFactor::OneMinusSourceAlpha
+         && equation.rgb_operation == BlendOperation::Add
+@@ -29,6 +29,7 @@ pub(super) fn emit(
+     fb: &mut FunctionBuilder<'_>,
+     source: Value,
+     destination: Value,
++    normalized: bool,
+ ) -> BResult<Value> {
+     let form = Form {
+         held: Held::Float(FloatFmt::F32),
+@@ -37,10 +38,13 @@ pub(super) fn emit(
+     let zero = ops::fsplat(fb, form, 0.0)?;
+     let one = ops::fsplat(fb, form, 1.0)?;
+     // Ordered comparisons send a NaN to zero, independently of the driver's min/max rules.
++    let source = if normalized {
+     let positive = fb.binary(BinOp::FOrdGreaterThan, source, zero)?;
+     let source = fb.select(positive, source, zero)?;
+     let below_one = fb.binary(BinOp::FOrdLessThan, source, one)?;
+     let source = fb.select(below_one, source, one)?;
++    source
++    } else { source };
+     let alpha = fb.vector_shuffle(source, source, &[3, 3, 3, 3])?;
+     let remaining = fb.binary_no_contraction(BinOp::FSub, one, alpha)?;
+     let destination = fb.binary_no_contraction(BinOp::FMul, destination, remaining)?;
+@@ -64,24 +68,25 @@ mod tests {
+             kind: ResourceKind::Buffer,
+             index: 0,
+         };
+-        for (source, destination, expected) in [
++        for (normalized, source, destination, expected) in [
+             (
+-                [0.25, 0.125, 0.0, 0.5],
++                true, [0.25, 0.125, 0.0, 0.5],
+                 [0.5, 0.25, 1.0, 0.75],
+                 [0.5, 0.25, 0.5, 0.875],
+             ),
+-            ([0.0; 4], [0.25, 0.5, 0.75, 1.0], [0.25, 0.5, 0.75, 1.0]),
+-            ([1.0; 4], [0.25, 0.5, 0.75, 1.0], [1.0; 4]),
++            (true, [0.0; 4], [0.25, 0.5, 0.75, 1.0], [0.25, 0.5, 0.75, 1.0]),
++            (true, [1.0; 4], [0.25, 0.5, 0.75, 1.0], [1.0; 4]),
+             (
+-                [-1.0, 2.0, f32::NAN, 0.25],
++                true, [-1.0, 2.0, f32::NAN, 0.25],
+                 [0.5; 4],
+                 [0.375, 1.375, 0.375, 0.625],
+             ),
+             (
+-                [0.25, 0.5, 0.75, f32::NAN],
++                true, [0.25, 0.5, 0.75, f32::NAN],
+                 [0.25; 4],
+                 [0.5, 0.75, 1.0, 0.25],
+             ),
++            (false, [-2.0, 4.0, 0.5, 0.25], [2.0, -4.0, 1.0, 0.5], [-0.5, 1.0, 1.25, 0.625]),
+         ] {
+             let mut module = ModuleBuilder::new();
+             let f32_ = module.ty(Type::Float { width: 32 }).unwrap();
+@@ -109,7 +114,7 @@ mod tests {
+             };
+             let source = vector(source);
+             let destination = vector(destination);
+-            let result = emit(&mut function, source, destination).unwrap();
++            let result = emit(&mut function, source, destination, normalized).unwrap();
+             let zero = function.u32_const(0).unwrap();
+             let zero = function.module().const_value(zero).unwrap();
+             let base = function.module().global_value(output).unwrap();
+diff --git a/crates/metal2vulkan/src/lower/fragment/fetch/tests.rs b/crates/metal2vulkan/src/lower/fragment/fetch/tests.rs
+index 14a3373..ac1a5f5 100644
+--- a/crates/metal2vulkan/src/lower/fragment/fetch/tests.rs
++++ b/crates/metal2vulkan/src/lower/fragment/fetch/tests.rs
+@@ -53,6 +53,7 @@ fn normalized_source_over_keeps_the_ordered_storage_form() {
+         PixelFormat::RGBA8Unorm,
+         PixelFormat::BGRA8Unorm,
+         PixelFormat::RGBA16Unorm,
++        PixelFormat::RGBA16Float,
+     ] {
+         for mask in [
+             ColorWriteMask::ALL,
+diff --git a/crates/metal2vulkan/src/lower/select.rs b/crates/metal2vulkan/src/lower/select.rs
+index 15424fd..d7fa20b 100644
+--- a/crates/metal2vulkan/src/lower/select.rs
++++ b/crates/metal2vulkan/src/lower/select.rs
+@@ -1300,6 +1300,10 @@ struct BodySelection {
+ }
+ 
+ fn located(e: Error, cx: &SelectCx<'_>, block: u32, inst: InstId) -> Error {
++    if matches!(&e,Error::Unsupported(u) if u.feature==crate::error::Feature::Format)
++        && std::env::var_os("METAL2VULKAN_TRACE_FORMAT_REFUSAL").as_deref()==Some(std::ffi::OsStr::new("1")) {
++        eprintln!("format-refusal function={} block={} inst={} inputs={:#?}",cx.entry.ep.name,block,inst.raw(),cx.inputs);
++    }
+     match e {
+         Error::Unsupported(u) if !u.is_placed() => Error::Unsupported(u.placed_at(
+             Location::function(cx.entry.ep.name.clone(), Some(block), Some(inst.raw())),
+diff --git a/crates/metal2vulkan/src/lower/texture/emit.rs b/crates/metal2vulkan/src/lower/texture/emit.rs
+index d4ac874..3645f55 100644
+--- a/crates/metal2vulkan/src/lower/texture/emit.rs
++++ b/crates/metal2vulkan/src/lower/texture/emit.rs
+@@ -854,6 +854,7 @@ fn from_image(
+         | StorageImageClass::HalfQuietNan
+         | StorageImageClass::SmallFloatQuietNan
+         | StorageImageClass::YCbCrWrite
++        | StorageImageClass::Rgb9e5Bits
+         | StorageImageClass::OneBitAlpha => x,
+         // A half-float texel's bits, through its unsigned integer alias: Metal's read, whole.
+         StorageImageClass::HalfBits => return half_bits_texel(fb, decl, form, x),
+@@ -1617,6 +1618,7 @@ pub fn to_image(
+             _ => x,
+         },
+         StorageImageClass::HalfBits => half_bits(fb, form, x)?,
++        StorageImageClass::Rgb9e5Bits => rgb9e5_bits(fb, form, x)?,
+     };
+     match decl.x_channel && form.lanes == 4 {
+         true => x_channel_write(fb, x),
+@@ -1730,6 +1732,72 @@ fn half_bits_texel(
+ /// texel's are first rounded toward zero to the half Metal stores ([`half_write`] under
+ /// `HalfTowardZero`: past 65504 to 65504, an infinity kept, every NaN [`QUIET_NAN`], whose bits
+ /// are Metal's `0x7e00`). An integer texel is not one a half-float slot takes.
++fn rgb9e5_bits(fb: &mut FunctionBuilder<'_>, form: TexelForm, x: SValue) -> BResult<SValue> {
++    // EXT_texture_shared_exponent encoding: clamp, choose the shared exponent,
++    // raise it if rounding would overflow a mantissa, then round each field.
++    let u = u32_ty(fb)?;
++    let f = f32_ty(fb)?;
++    let zero = f32s(fb, 1, 0.0)?;
++    let limit = f32s(fb, 1, 65408.0)?;
++    let half = f32s(fb, 1, 0.5)?;
++    let mut channels = Vec::new();
++    let mut maximum = zero;
++    for lane in 0..3u32 {
++        let v = match form.lanes {
++            1 if lane == 0 => x,
++            n if n > 1 && lane < u32::from(n) => fb.composite_extract(x, &[lane])?,
++            _ => zero,
++        };
++        // Ordered comparison sends NaNs, negatives and negative zero to zero.
++        let positive = fb.binary(BinOp::FOrdGreaterThan, v, zero)?;
++        let v = fb.select(positive, v, zero)?;
++        let below = fb.binary(BinOp::FOrdLessThan, v, limit)?;
++        let v = fb.select(below, v, limit)?;
++        let larger = fb.binary(BinOp::FOrdGreaterThan, v, maximum)?;
++        maximum = fb.select(larger, v, maximum)?;
++        channels.push(v);
++    }
++    let bits = fb.convert(ConvOp::Bitcast, maximum, u)?;
++    let k23 = u32s(fb, 1, 23)?;
++    let biased = fb.binary(BinOp::ShiftRightLogical, bits, k23)?;
++    let floor = u32s(fb, 1, 111)?;
++    let smaller = fb.binary(BinOp::ULessThan, biased, floor)?;
++    let biased = fb.select(smaller, floor, biased)?;
++    let mut exp = fb.binary(BinOp::ISub, biased, floor)?;
++    let reciprocal = |fb: &mut FunctionBuilder<'_>, exp: SValue| -> BResult<SValue> {
++        let k151 = u32s(fb, 1, 151)?;
++        let e = fb.binary(BinOp::ISub, k151, exp)?;
++        let b = fb.binary(BinOp::ShiftLeftLogical, e, k23)?;
++        fb.convert(ConvOp::Bitcast, b, f)
++    };
++    let scale = reciprocal(fb, exp)?;
++    let scaled = fb.binary(BinOp::FMul, maximum, scale)?;
++    let rounded = fb.binary(BinOp::FAdd, scaled, half)?;
++    let mantissa = fb.convert(ConvOp::ConvertFToU, rounded, u)?;
++    let k512 = u32s(fb, 1, 512)?;
++    let carry = fb.binary(BinOp::UGreaterThanEqual, mantissa, k512)?;
++    let one = u32s(fb, 1, 1)?;
++    let incremented = fb.binary(BinOp::IAdd, exp, one)?;
++    exp = fb.select(carry, incremented, exp)?;
++    let scale = reciprocal(fb, exp)?;
++    let k27 = u32s(fb, 1, 27)?;
++    let mut word = fb.binary(BinOp::ShiftLeftLogical, exp, k27)?;
++    for (lane, v) in channels.into_iter().enumerate() {
++        let scaled = fb.binary(BinOp::FMul, v, scale)?;
++        let rounded = fb.binary(BinOp::FAdd, scaled, half)?;
++        let m = fb.convert(ConvOp::ConvertFToU, rounded, u)?;
++        let shift = u32s(fb, 1, (lane * 9) as u32)?;
++        let field = fb.binary(BinOp::ShiftLeftLogical, m, shift)?;
++        word = fb.binary(BinOp::BitwiseOr, word, field)?;
++    }
++    if form.lanes == 1 { return Ok(word); }
++    let z = u32s(fb, 1, 0)?;
++    let mut lanes = vec![z; usize::from(form.lanes)];
++    lanes[0] = word;
++    let ty = vec(fb, u, form.lanes)?;
++    fb.composite_construct(ty, &lanes)
++}
++
+ fn half_bits(fb: &mut FunctionBuilder<'_>, form: TexelForm, x: SValue) -> BResult<SValue> {
+     let x = match form.conv {
+         TexelConv::F32 => half_write(fb, StorageImageClass::HalfTowardZero, form, x)?,
+@@ -2028,6 +2096,7 @@ pub(crate) fn class_write_words(class: StorageImageClass) -> u32 {
+     use crate::lower::arith::color_write;
+     use crate::pipeline::lower_inputs::ChannelWrite;
+     match class {
++        StorageImageClass::Rgb9e5Bits => 512,
+         StorageImageClass::HalfTowardZero => {
+             color_write::small_float_words(crate::pipeline::color_writes::HALF, 4) as u32
+         }
+diff --git a/crates/metal2vulkan/src/lower/texture/mod.rs b/crates/metal2vulkan/src/lower/texture/mod.rs
+index 4035ec4..00552ba 100644
+--- a/crates/metal2vulkan/src/lower/texture/mod.rs
++++ b/crates/metal2vulkan/src/lower/texture/mod.rs
+@@ -2741,6 +2741,11 @@ fn mode_rounded_write(
+     texel: TexelForm,
+     extended: bool,
+ ) -> Result<(), Error> {
++    if storage_class(cx, image)? == StorageImageClass::Rgb9e5Bits {
++        // Standard shared-exponent packing; Apple-specific tie/NaN behavior is
++        // not hardware-qualified. Keep that precision boundary visible.
++        cx.precision.insert(crate::pipeline::artifact::PrecisionNote::DeviceTexelConversion);
++    }
+     use crate::metal::TextureWriteRoundingMode as Mode;
+     use crate::pipeline::facts::RuntimeFact;
+     use crate::vk::Format as F;
+@@ -2771,7 +2776,7 @@ fn mode_rounded_write(
+                             small: false,
+                         }
+                     }
+-                    StorageImageClass::SmallFloatQuietNan => Target::Declared {
++                    StorageImageClass::SmallFloatQuietNan | StorageImageClass::Rgb9e5Bits => Target::Declared {
+                         half: false,
+                         small: true,
+                     },
+diff --git a/crates/metal2vulkan/src/lower/texture/slot.rs b/crates/metal2vulkan/src/lower/texture/slot.rs
+index f075342..b60d046 100644
+--- a/crates/metal2vulkan/src/lower/texture/slot.rs
++++ b/crates/metal2vulkan/src/lower/texture/slot.rs
+@@ -772,7 +772,7 @@ fn storage_format(
+     // written stores its half bits in its unsigned integer alias.
+     let converting = !matches!(
+         choice.class,
+-        StorageImageClass::Identity | StorageImageClass::YCbCrWrite | StorageImageClass::HalfBits
++        StorageImageClass::Identity | StorageImageClass::YCbCrWrite | StorageImageClass::HalfBits | StorageImageClass::Rgb9e5Bits
+     );
+     if converting && texel != TexelClass::Float {
+         return Err(Unsupported::not_representable(Feature::Format).into());
+@@ -1011,6 +1011,11 @@ fn declare_slot(
+             .get(&s.slot)
+             .is_some_and(|c| c.class == StorageImageClass::YCbCrWrite);
+     let float = image_class(cx.inputs, s) == TexelClass::Float;
++    let rgb9e5_bits = storage && cx.inputs.storage_images.get(&s.slot)
++        .is_some_and(|c| c.class == StorageImageClass::Rgb9e5Bits);
++    if rgb9e5_bits && (s.uses.read || s.uses.atomic || !float) {
++        return Err(Unsupported::not_representable(Feature::Format).into());
++    }
+     if ycbcr_write && (s.uses.read || s.uses.atomic || !float) {
+         return Err(Unsupported::not_implemented(Feature::Format).into());
+     }
+@@ -1034,7 +1039,7 @@ fn declare_slot(
+     }
+     let texel = match extended {
+         Some(_) => TexelClass::Uint,
+-        None if ycbcr_write || half_bits => TexelClass::Uint,
++        None if ycbcr_write || half_bits || rgb9e5_bits => TexelClass::Uint,
+         None => image_class(cx.inputs, s),
+     };
+     if shape.depth && storage {
+diff --git a/crates/metal2vulkan/src/metal/format/mod.rs b/crates/metal2vulkan/src/metal/format/mod.rs
+index edb6101..f622bf4 100644
+--- a/crates/metal2vulkan/src/metal/format/mod.rs
++++ b/crates/metal2vulkan/src/metal/format/mod.rs
+@@ -187,9 +187,8 @@ impl FormatEmulation {
+             FormatEmulation::YCbCr => {
+                 matches!(usage, U::SampledImage | U::SampledImageFilterLinear)
+             }
+-            FormatEmulation::YCbCrRendered | FormatEmulation::YCbCrPassRefused => {
+-                usage == U::ColorAttachment
+-            }
++            FormatEmulation::YCbCrRendered => matches!(usage, U::ColorAttachment | U::ColorAttachmentBlend),
++            FormatEmulation::YCbCrPassRefused => usage == U::ColorAttachment,
+             FormatEmulation::XChannel => matches!(
+                 usage,
+                 U::SampledImage
+@@ -1723,7 +1722,7 @@ pub fn ycbcr_writes_stored(pf: PixelFormat) -> bool {
+ pub fn ycbcr_renders(pf: PixelFormat) -> bool {
+     // Every such layout is held ([`ycbcr`]), whose representation asks this.
+     ycbcr_format(pf)
+-        .is_some_and(|f| !f.packed && matches!(f.bits, 8 | 10) && f.reads == YCbCrReads::Converted)
++        .is_some_and(|f| !f.packed && matches!(f.bits, 8 | 10) && (f.reads == YCbCrReads::Converted || pf == PixelFormat::RGB84442P))
+ }
+ 
+ /// Whether `pf` is a packed 10-bit two-plane YCbCr format this crate holds ([`ycbcr`]), whose
+@@ -2510,6 +2509,9 @@ fn held_storage_choice(
+     let declarable = |f: vk::Format| formatless(f) || spirv_image_format(f).is_some();
+     let rotated = candidates[0].emulation == FormatEmulation::RotatedView;
+     let alias = match pf {
++        PixelFormat::RGB9E5Float if aliased && use_.write && !use_.read => {
++            Some((F::R32_UINT, StorageImageClass::Rgb9e5Bits))
++        }
+         PixelFormat::BGRA8Unorm => Some((F::R8G8B8A8_UNORM, StorageImageClass::SwizzleBgra)),
+         // `A2R10G10B10`'s fields are `A2B10G10R10`'s with red and blue exchanged.
+         PixelFormat::BGR10A2Unorm => {
+diff --git a/crates/metal2vulkan/src/pipeline/link/graphics.rs b/crates/metal2vulkan/src/pipeline/link/graphics.rs
+index b832f1d..70ba551 100644
+--- a/crates/metal2vulkan/src/pipeline/link/graphics.rs
++++ b/crates/metal2vulkan/src/pipeline/link/graphics.rs
+@@ -333,6 +333,9 @@ pub fn graphics_state(
+                     let blended = a.blending_enabled && !replaced && input_blend.is_none();
+                     let mut usages = BTreeSet::from([FormatUsage::ColorAttachment]);
+                     if blended {
++                        if metal::format::ycbcr_renders(a.pixel_format) && a.pixel_format != crate::metal::PixelFormat::RGB84442P {
++                            return Err(Unsupported::not_implemented(Feature::Format).into());
++                        }
+                         usages.insert(FormatUsage::ColorAttachmentBlend);
+                     }
+                     let descriptor_mask = color_write_mask(a.write_mask)?;
+diff --git a/crates/metal2vulkan/src/pipeline/lower_inputs.rs b/crates/metal2vulkan/src/pipeline/lower_inputs.rs
+index 9f595f0..6f895f1 100644
+--- a/crates/metal2vulkan/src/pipeline/lower_inputs.rs
++++ b/crates/metal2vulkan/src/pipeline/lower_inputs.rs
+@@ -1141,6 +1141,8 @@ pub enum StorageImageClass {
+     /// Metal reads them. The slot is declared of the alias's unsigned integer format; it takes no
+     /// atomic.
+     HalfBits,
++    /// Write-only RGB9E5 through an R32Uint view, packed explicitly by the shader.
++    Rgb9e5Bits,
+ }
+ 
+ /// The alias view of a storage image created with `MUTABLE_FORMAT`.
+diff --git a/crates/metal2vulkan/src/tests/engine_fragment.rs b/crates/metal2vulkan/src/tests/engine_fragment.rs
+index e5a9075..d4e4fb2 100644
+--- a/crates/metal2vulkan/src/tests/engine_fragment.rs
++++ b/crates/metal2vulkan/src/tests/engine_fragment.rs
+@@ -496,7 +496,7 @@ fn normalized_fetch_source_over_compiles_and_links_in_the_interlock() {
+             DeviceDescription::from_khronos_json(&std::fs::read_to_string(path).unwrap(), None)
+                 .unwrap();
+         let device = Device::new(description, DevicePolicy::default()).unwrap();
+-        for format in [PixelFormat::RGBA8Unorm, PixelFormat::BGRA8Unorm] {
++        for format in [PixelFormat::RGBA8Unorm, PixelFormat::BGRA8Unorm, PixelFormat::RGBA16Float] {
+             for mask in [
+                 ColorWriteMask::ALL,
+                 ColorWriteMask::RED | ColorWriteMask::BLUE,

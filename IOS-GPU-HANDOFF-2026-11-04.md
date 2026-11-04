@@ -2,6 +2,14 @@
 
 Prepared for the shared iOS Sweet workspace on 4 November 2026. Evidence refreshed at approximately 22:00 UTC. This is an engineering handoff, not a claim that the iPhone is finished or stable.
 
+## Later milestone and source publication
+
+The repaired GPU instance subsequently reached the visible **Get Started** screen. Before the user pressed it, a new paused-device checkpoint was captured at `E:/ios-sweet-checkpoints/20261104-get-started-phase`; all 13 device files passed checksum verification and the same instance resumed. This supersedes the earlier welcome-only visual observation below. It does not prove home-screen/app acceptance or exact-step cold restoration.
+
+The source work is now exported as pinned, reconstructable patches and portable development wrappers under [experimental/windows-gpu](experimental/windows-gpu/README.md). Fresh public-source preparation, patch application and reconstructed file hashes passed; the owned textual fixtures compiled locally. Four plan-only launcher/manifest tests, the existing viewer-poll test and seven C poll-limit assertions passed. Full fresh-machine QEMU/renderer rebuilding remains unverified for the new wrappers.
+
+The [shared Notion handoff](https://app.notion.com/p/40ec84878c9681e3b14bf386550bde59) is published beneath iOS Sweet Studio. GitHub access to Dan's repository is read-only, so the contribution uses `DeclanFrampton/ios-sweet`, with a dedicated `feature/gpu-development` base. Dan's remote had no GPU development branch at publication time; review in the fork is separate from an upstream merge.
+
 ## What has changed
 
 We now have a real iOS guest rendering through the RTX 4070 Ti on native Windows. It has reached interactive setup, including language/country selection, appearance and Camera Control. This is beyond the earlier synthetic framebuffer demonstrations. The latest work fixes a specific host-renderer abort encountered after Camera Control Continue; focused GPU tests and the native build passed, and the repaired instance reached the welcome screen. The Camera Control transition still needs a live retry.

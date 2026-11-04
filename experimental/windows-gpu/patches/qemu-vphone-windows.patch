@@ -1,0 +1,531 @@
+diff --git a/hw/arm/apple-silicon/meson.build b/hw/arm/apple-silicon/meson.build
+--- a/hw/arm/apple-silicon/meson.build
++++ b/hw/arm/apple-silicon/meson.build
+@@ -1,4 +1,4 @@
+-arm_common_ss.add(when: 'CONFIG_APPLE_SOC', if_true: tasn1)
++arm_common_ss.add(when: 'CONFIG_APPLE_SOC', if_true: [tasn1, liblzfse])
+ 
+ # Optional: the agxemu library executes the jobs the GPU firmware kicks.
+ agxemu_dir = get_option('agxemu')
+diff --git a/hw/arm/apple-silicon/t8030.c b/hw/arm/apple-silicon/t8030.c
+--- a/hw/arm/apple-silicon/t8030.c
++++ b/hw/arm/apple-silicon/t8030.c
+@@ -2500,7 +2500,7 @@
+             g_file_set_contents(ta_path, (const char *)ta, 0x20000, NULL);
+         }
+     }
+-    fd = open(ram_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
++    fd = open(ram_path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
+     if (fd < 0) {
+         return;
+     }
+@@ -2509,7 +2509,12 @@
+                                MEMTXATTRS_UNSPECIFIED, buf,
+                                chunk) == MEMTX_OK &&
+             !buffer_is_zero(buf, chunk) &&
++#ifdef CONFIG_WIN32
++            (_lseeki64(fd, off, SEEK_SET) != off ||
++             qemu_write_full(fd, buf, chunk) != (ssize_t)chunk)) {
++#else
+             pwrite(fd, buf, chunk, off) != (ssize_t)chunk) {
++#endif
+             break;
+         }
+     }
+diff --git a/hw/display/apple-gfx-mmio.c b/hw/display/apple-gfx-mmio.c
+--- a/hw/display/apple-gfx-mmio.c
++++ b/hw/display/apple-gfx-mmio.c
+@@ -99,7 +99,7 @@
+                                                    Error **errp)
+ {
+     /* The library copies the ranges. */
+-    g_autoptr(GArray) memory_ranges = apple_gfx_new_memory_ranges(NULL);
++    g_autoptr(GArray) memory_ranges = apple_gfx_new_memory_ranges(NULL, NULL);
+     RvgMemoryMap memory_map = {
+         .ranges = (const RvgMemoryRange *)memory_ranges->data,
+         .range_count = memory_ranges->len,
+@@ -113,7 +113,9 @@
+         .struct_size = sizeof(config),
+         .memory_map = &memory_map,
+         .callbacks = &callbacks,
++#ifndef _WIN32
+         .guest_page_shift = s->guest_page_shift,
++#endif
+     };
+     RvgStatus status;
+ 
+@@ -154,9 +156,18 @@
+         .use_iosurface_mapper = true,
+         .process_isolation = s->process_isolation,
+         .callbacks = &callbacks,
++#ifndef _WIN32
+         .guest_page_shift = s->guest_page_shift,
+-    };
+-
++#endif
++    };
++
++#ifdef _WIN32
++    /* This experimental DLL is built with guest-page-16k, not per-device pages. */
++    if (s->guest_page_shift != 14) {
++        error_setg(errp, "Windows apple-gfx requires the fixed 16 KiB guest-page renderer");
++        return;
++    }
++#endif
+     if (!apple_gfx_common_realize(&s->common, dev, &config, errp)) {
+         return;
+     }
+diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
+--- a/hw/display/apple-gfx.c
++++ b/hw/display/apple-gfx.c
+@@ -599,6 +599,9 @@
+ typedef struct AppleGFXMemoryWalk {
+     GArray *ranges;
+     GArray *files; /* NULL when the caller wants none */
++#ifdef _WIN32
++    GArray *sections;
++#endif
+ } AppleGFXMemoryWalk;
+ 
+ /*
+@@ -649,6 +652,18 @@
+             file = apple_gfx_memory_range_file(mr, host);
+             g_array_append_val(walk->files, file);
+         }
++#ifdef _WIN32
++        if (walk->sections) {
++            RAMBlock *rb = mr->ram_block;
++            RvgMemoryRangeSection section = {
++                .handle = (uintptr_t)rb->win32_section,
++                .offset = qemu_ram_block_host_offset(rb, host),
++                .length = rb->max_length,
++            };
++
++            g_array_append_val(walk->sections, section);
++        }
++#endif
+         g_array_append_val(walk->ranges, range);
+         trace_apple_gfx_memory_range(range.physical_address,
+                                      range.physical_length, host, file.fd,
+@@ -657,7 +672,7 @@
+     return false;
+ }
+ 
+-GArray *apple_gfx_new_memory_ranges(GArray **files)
++GArray *apple_gfx_new_memory_ranges(GArray **files, GArray **sections)
+ {
+     AppleGFXMemoryWalk walk = {
+         .ranges = g_array_new(false, false, sizeof(RvgMemoryRange)),
+@@ -667,6 +682,14 @@
+     if (files) {
+         walk.files = g_array_new(false, false, sizeof(RvgMemoryRangeFile));
+         *files = walk.files;
++    }
++    if (sections) {
++        *sections = NULL;
++#ifdef _WIN32
++        walk.sections = g_array_new(false, false,
++                                     sizeof(RvgMemoryRangeSection));
++        *sections = walk.sections;
++#endif
+     }
+     flatview_for_each_range(fv, apple_gfx_add_memory_range, &walk);
+     return walk.ranges;
+@@ -977,6 +1000,7 @@
+     static const char display_name[] = "Reims vGPU";
+     g_autoptr(GArray) memory_ranges = NULL;
+     g_autoptr(GArray) memory_files = NULL;
++    g_autoptr(GArray) memory_sections = NULL;
+     g_autofree RvgDisplayMode *modes = NULL;
+     const AppleGFXDisplayMode *display_modes = apple_gfx_default_modes;
+     uint32_t num_display_modes = ARRAY_SIZE(apple_gfx_default_modes);
+@@ -1039,12 +1063,24 @@
+         }
+     }
+ 
+-    /* The library copies the ranges, and duplicates the files' descriptors. */
+-    memory_ranges = apple_gfx_new_memory_ranges(&memory_files);
++    /* The library copies the ranges and duplicates their backing handles. */
++    memory_ranges = apple_gfx_new_memory_ranges(&memory_files, &memory_sections);
+     if (!apple_gfx_memory_files(memory_ranges, memory_files,
+                                 &config->memory_files, errp)) {
+         return false;
+     }
++#ifdef _WIN32
++    for (i = 0; i < memory_sections->len; i++) {
++        if (!g_array_index(memory_sections, RvgMemoryRangeSection, i).handle) {
++            error_setg(errp, "apple-gfx: guest RAM at 0x%" PRIx64
++                       " is not backed by a Windows section",
++                       g_array_index(memory_ranges, RvgMemoryRange,
++                                     i).physical_address);
++            return false;
++        }
++    }
++    config->memory_sections = (const RvgMemoryRangeSection *)memory_sections->data;
++#endif
+     memory_map = (RvgMemoryMap) {
+         .ranges = (const RvgMemoryRange *)memory_ranges->data,
+         .range_count = memory_ranges->len,
+diff --git a/hw/display/apple-gfx.h b/hw/display/apple-gfx.h
+--- a/hw/display/apple-gfx.h
++++ b/hw/display/apple-gfx.h
+@@ -115,8 +115,9 @@
+  * The guest's RAM, as RvgMemoryRange elements: an RvgMemoryMap's ranges.
+  * Unless @files is NULL, it gets the file behind each range, as
+  * RvgMemoryRangeFile elements in the same order, fd -1 where there is none.
++ * On Windows, @sections receives the sections backing the same ranges.
+  */
+-GArray *apple_gfx_new_memory_ranges(GArray **files);
++GArray *apple_gfx_new_memory_ranges(GArray **files, GArray **sections);
+ 
+ extern const PropertyInfo qdev_prop_apple_gfx_display_mode;
+ 
+diff --git a/hw/usb/dev-hid.c b/hw/usb/dev-hid.c
+--- a/hw/usb/dev-hid.c
++++ b/hw/usb/dev-hid.c
+@@ -1040,10 +1040,16 @@
+             on = e && *e && *e != '0';
+         }
+         if (on) {
++            uint64_t timestamp_ns;
++#ifdef CONFIG_WIN32
++            timestamp_ns = GetTickCount64() * 1000000ULL;
++#else
+             struct timespec ts;
+             clock_gettime(CLOCK_BOOTTIME, &ts);
++            timestamp_ns = (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
++#endif
+             fprintf(stderr, "touchrep %" PRIu64 " btn %d x %d y %d\n",
+-                    (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec, tablet[0],
++                    timestamp_ns, tablet[0],
+                     tablet[1] | (tablet[2] << 8), tablet[3] | (tablet[4] << 8));
+         }
+     }
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -544,6 +544,8 @@
+ int qemu_shm_alloc(size_t size, Error **errp);
+ 
+ #ifdef _WIN32
++void *qemu_win32_ram_alloc(size_t size, uint64_t *align, bool noreserve,
++                           HANDLE *section);
+ #define HAVE_CHARDEV_SERIAL 1
+ #define HAVE_CHARDEV_PARALLEL 1
+ #else
+diff --git a/include/qemu/win32-poll-limit.h b/include/qemu/win32-poll-limit.h
+new file mode 100644
+--- /dev/null
++++ b/include/qemu/win32-poll-limit.h
+@@ -0,0 +1,10 @@
++/* Optional bounded wait for Windows hosts whose event wakeups are delayed. */
++#ifndef QEMU_WIN32_POLL_LIMIT_H
++#define QEMU_WIN32_POLL_LIMIT_H
++#include <stdint.h>
++static inline int64_t qemu_win32_poll_limit_ns(int64_t timeout, int cap_ms)
++{
++    int64_t cap = (int64_t)cap_ms * 1000000;
++    return cap_ms > 0 && (timeout < 0 || timeout > cap) ? cap : timeout;
++}
++#endif
+diff --git a/include/system/ramblock.h b/include/system/ramblock.h
+--- a/include/system/ramblock.h
++++ b/include/system/ramblock.h
+@@ -45,6 +45,9 @@
+     Error *cpr_blocker;
+     int fd;
+     uint64_t fd_offset;
++#ifdef _WIN32
++    HANDLE win32_section; /* Owns the section behind host, or NULL for prealloc. */
++#endif
+     int guest_memfd;
+     RamBlockAttributes *attributes;
+     size_t page_size;
+diff --git a/meson.build b/meson.build
+--- a/meson.build
++++ b/meson.build
+@@ -733,8 +733,8 @@
+ # The paravirtualized GPU device (apple-gfx) runs on libreims_vgpu, a
+ # replacement for ParavirtualizedGraphics.framework, found through pkg-config
+ # (configure with PKG_CONFIG_PATH=<reims-vgpu>/target/dist-*/lib/pkgconfig).
+-if host_os in ['darwin', 'linux']
+-  pvg = dependency('reims-vgpu', method: 'pkg-config', static: true,
++if host_os in ['darwin', 'linux', 'windows']
++  pvg = dependency('reims-vgpu', method: 'pkg-config', static: host_os != 'windows',
+                    required: get_option('pvg'))
+ endif
+ 
+@@ -3193,7 +3193,7 @@
+     # takes the guest's page size per device, arm64 guests under TCG on Linux.
+     if pvg.found() and (target in accelerator_targets.get('CONFIG_HVF', []) or
+                         target in accelerator_targets.get('CONFIG_KVM', []) or
+-                        (host_os == 'linux' and target == 'aarch64-softmmu'))
++                        (host_os in ['linux', 'windows'] and target == 'aarch64-softmmu'))
+       target_kconfig += 'CONFIG_MAC_PVG=y'
+     endif
+ 
+diff --git a/scripts/symlink-install-tree.py b/scripts/symlink-install-tree.py
+--- a/scripts/symlink-install-tree.py
++++ b/scripts/symlink-install-tree.py
+@@ -5,6 +5,7 @@
+ import json
+ import os
+ import shlex
++import shutil
+ import subprocess
+ import sys
+ 
+@@ -28,9 +29,15 @@
+     try:
+         os.symlink(source, bundle_dest)
+     except BaseException as e:
++        if (os.name == 'nt' and isinstance(e, OSError)
++                and getattr(e, 'winerror', None) in (1, 1314)):
++            if os.path.isfile(source):
++                shutil.copy2(source, bundle_dest)
++            continue
+         if not isinstance(e, OSError) or e.errno != errno.EEXIST:
+             if os.name == 'nt':
+                 print('Please enable Developer Mode to support soft link '
+                       'without Administrator permission')
+             print(f'error making symbolic link {dest}', file=sys.stderr)
+             raise e
++
+diff --git a/system/physmem.c b/system/physmem.c
+--- a/system/physmem.c
++++ b/system/physmem.c
+@@ -1841,7 +1841,9 @@
+ static void ram_block_add(RAMBlock *new_block, Error **errp)
+ {
+     const bool noreserve = qemu_ram_is_noreserve(new_block);
++#ifndef _WIN32
+     const bool shared = qemu_ram_is_shared(new_block);
++#endif
+     RAMBlock *block;
+     RAMBlock *last_block = NULL;
+     bool free_on_error = false;
+@@ -1861,9 +1863,16 @@
+                 return;
+             }
+         } else {
++#ifdef _WIN32
++            new_block->host = qemu_win32_ram_alloc(new_block->max_length,
++                                                 &new_block->mr->align,
++                                                 noreserve,
++                                                 &new_block->win32_section);
++#else
+             new_block->host = qemu_anon_ram_alloc(new_block->max_length,
+                                                   &new_block->mr->align,
+                                                   shared, noreserve);
++#endif
+             if (!new_block->host) {
+                 error_setg_errno(errp, errno,
+                                  "cannot set up guest memory '%s'",
+@@ -1979,6 +1988,10 @@
+ out_free:
+     if (free_on_error) {
+         qemu_anon_ram_free(new_block->host, new_block->max_length);
++#ifdef _WIN32
++        CloseHandle(new_block->win32_section);
++        new_block->win32_section = NULL;
++#endif
+         new_block->host = NULL;
+     }
+ }
+@@ -2268,6 +2281,9 @@
+ #endif
+     } else {
+         qemu_anon_ram_free(block->host, block->max_length);
++#ifdef _WIN32
++        CloseHandle(block->win32_section);
++#endif
+     }
+ 
+     if (block->guest_memfd >= 0) {
+diff --git a/tests/unit/test-win32-ram.c b/tests/unit/test-win32-ram.c
+new file mode 100644
+--- /dev/null
++++ b/tests/unit/test-win32-ram.c
+@@ -0,0 +1,74 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++#include "qemu/osdep.h"
++
++static void test_section_alias(void)
++{
++    const size_t granularity = 65536;
++    const size_t size = 2 * granularity;
++    HANDLE section, duplicate;
++    uint64_t align = 0;
++    uint8_t *ram = qemu_win32_ram_alloc(size, &align, false, &section);
++    uint8_t *alias, *retained;
++
++    g_assert_nonnull(ram);
++    g_assert_nonnull(section);
++    g_assert_cmpuint((uintptr_t)ram % align, ==, 0);
++    g_assert_cmpuint(ram[0], ==, 0);
++    g_assert_cmpuint(ram[size - 1], ==, 0);
++    alias = MapViewOfFile(section, FILE_MAP_ALL_ACCESS, 0, granularity,
++                          granularity);
++    g_assert_nonnull(alias);
++    ram[granularity] = 0x5a;
++    g_assert_cmpuint(alias[0], ==, 0x5a);
++    alias[granularity - 1] = 0xa5;
++    g_assert_cmpuint(ram[size - 1], ==, 0xa5);
++
++    g_assert_true(DuplicateHandle(GetCurrentProcess(), section,
++                                  GetCurrentProcess(), &duplicate, 0, false,
++                                  DUPLICATE_SAME_ACCESS));
++    qemu_anon_ram_free(ram, size);
++    g_assert_true(CloseHandle(section));
++    retained = MapViewOfFile(duplicate, FILE_MAP_ALL_ACCESS, 0, 0, size);
++    g_assert_nonnull(retained);
++    g_assert_cmpuint(retained[granularity], ==, 0x5a);
++    alias[1] = 0x42;
++    g_assert_cmpuint(retained[granularity + 1], ==, 0x42);
++    g_assert_true(UnmapViewOfFile(alias));
++    qemu_anon_ram_free(retained, size);
++    g_assert_true(CloseHandle(duplicate));
++}
++
++static void test_allocation_failures(void)
++{
++    HANDLE section = INVALID_HANDLE_VALUE;
++
++    g_assert_null(qemu_win32_ram_alloc(65536, NULL, true, &section));
++    g_assert_null(section);
++    g_assert_cmpint(errno, ==, ENOTSUP);
++    g_assert_null(qemu_win32_ram_alloc(0, NULL, false, &section));
++    g_assert_null(section);
++    g_assert_cmpint(errno, ==, ENOMEM);
++}
++
++static void test_anonymous_view(void)
++{
++    uint8_t *ram = qemu_anon_ram_alloc(4096, NULL, false, false);
++    MEMORY_BASIC_INFORMATION info;
++
++    g_assert_nonnull(ram);
++    g_assert_cmpuint(VirtualQuery(ram, &info, sizeof(info)), ==, sizeof(info));
++    g_assert_cmpuint(info.Type, ==, MEM_MAPPED);
++    ram[4095] = 0x42;
++    g_assert_cmpuint(ram[4095], ==, 0x42);
++    qemu_anon_ram_free(ram, 4096);
++    qemu_anon_ram_free(NULL, 0);
++}
++
++int main(int argc, char **argv)
++{
++    g_test_init(&argc, &argv, NULL);
++    g_test_add_func("/win32-ram/section-alias", test_section_alias);
++    g_test_add_func("/win32-ram/allocation-failures", test_allocation_failures);
++    g_test_add_func("/win32-ram/anonymous-view", test_anonymous_view);
++    return g_test_run();
++}
+diff --git a/util/main-loop.c b/util/main-loop.c
+--- a/util/main-loop.c
++++ b/util/main-loop.c
+@@ -459,6 +459,23 @@
+     }
+ }
+ 
++#include "qemu/win32-poll-limit.h"
++
++static int win32_poll_cap_ms(void)
++{
++    static int cap = -1;
++    if (cap < 0) {
++        const char *value = getenv("VPHONE_WIN32_POLL_MAX_MS");
++        cap = 0;
++        if (value && (qemu_strtoi(value, NULL, 10, &cap) < 0 || cap < 0 || cap > 1000)) {
++            error_report("VPHONE_WIN32_POLL_MAX_MS must be 0..1000; disabled");
++            cap = 0;
++        }
++        if (cap) { info_report("Windows main-loop poll cap: %d ms", cap); }
++    }
++    return cap;
++}
++
+ static int os_host_main_loop_wait(int64_t timeout)
+ {
+     GMainContext *context = g_main_context_default();
+@@ -516,6 +533,9 @@
+     }
+ 
+     poll_timeout_ns = qemu_soonest_timeout(poll_timeout_ns, timeout);
++    /* Keep Windows socket probes and queued UI work serviceable during idle.
++     * Opt-in fallback; preserve zero and all earlier timer deadlines. */
++    poll_timeout_ns = qemu_win32_poll_limit_ns(poll_timeout_ns, win32_poll_cap_ms());
+ 
+     bql_unlock();
+ 
+diff --git a/util/oslib-win32.c b/util/oslib-win32.c
+--- a/util/oslib-win32.c
++++ b/util/oslib-win32.c
+@@ -44,10 +44,13 @@
+     return system_info.dwAllocationGranularity;
+ }
+ 
+-void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
+-                          bool noreserve)
++void *qemu_win32_ram_alloc(size_t size, uint64_t *align, bool noreserve,
++                           HANDLE *section)
+ {
+     void *ptr;
++    HANDLE mapping;
++
++    *section = NULL;
+ 
+     if (noreserve) {
+         /*
+@@ -55,14 +58,39 @@
+          * area; we cannot easily mimic POSIX MAP_NORESERVE semantics.
+          */
+         error_report("Skipping reservation of swap space is not supported.");
++        errno = ENOTSUP;
+         return NULL;
+     }
+ 
+-    ptr = VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
++    mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
++                                 (uint64_t)size >> 32, (DWORD)size, NULL);
++    if (!mapping) {
++        errno = ENOMEM;
++        return NULL;
++    }
++    ptr = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, size);
+     trace_qemu_anon_ram_alloc(size, ptr);
+-
+-    if (ptr && align) {
++    if (!ptr) {
++        CloseHandle(mapping);
++        errno = ENOMEM;
++        return NULL;
++    }
++    *section = mapping;
++
++    if (align) {
+         *align = MAX(get_allocation_granularity(), getpagesize());
++    }
++    return ptr;
++}
++
++void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
++                          bool noreserve)
++{
++    HANDLE section;
++    void *ptr = qemu_win32_ram_alloc(size, align, noreserve, &section);
++
++    if (section) {
++        CloseHandle(section);
+     }
+     return ptr;
+ }
+@@ -71,7 +99,7 @@
+ {
+     trace_qemu_anon_ram_free(ptr, size);
+     if (ptr) {
+-        VirtualFree(ptr, 0, MEM_RELEASE);
++        UnmapViewOfFile(ptr);
+     }
+ }
+ 
