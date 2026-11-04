@@ -69,6 +69,18 @@ Never run two instances against one bundle. The machine uses multiple views of t
 
 ## Validation and remaining work
 
+### Completed setup follow-up
+
+The user reached SpringBoard and opened Settings on the Windows GPU instance. This is post-setup interaction evidence, not sustained smoothness or broad app compatibility. A verified paused-device-file checkpoint preserves completed setup locally; it contains no GPU/RAM state.
+
+Run `phone-controls.ps1` to open the user-operated **Home / SpringBoard** and **Swipe up / unlock** companion. It compiles the included C# source using the Windows .NET Framework compiler and keeps its executable under local app data. Home uses the viewer's middle-click-to-Cmd+H path; swipe uses aspect-fitted client coordinates. It refuses missing, minimized or ambiguous viewers and stops a swipe if focus changes. Keep the viewer at its normal guest aspect fit. No QMP input is used. Closing this companion leaves the VM running.
+
+Normal `launch.py` runs disable pointer/report/FIFO tracing and retain warnings; `--diagnostics` opts back in. The required ASTC CPU fallback is enabled by default. This removes unnecessary diagnostics; no standalone FPS benefit has been measured.
+
+The Windows memory check now first queries all requested resident pages with `K32QueryWorkingSetEx`, bounded to4096unique pages, without caching between operations or reading guest bytes. Logical protections still apply. Invalid/nonresident/guarded/uncertain results fall back to the existing `VirtualQuery` validation. A read-only20-address experiment on confirmed resident pages in the running VM found median56.05ms for `VirtualQueryEx` versus0.0050ms for the page query (20/20pages still valid); this isolates metadata cost and is not a phone benchmark. Real protection/guard/unmap regression checks and native deployment results are recorded in the handoff.
+
+Public basis: [Microsoft page query](https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-queryworkingsetex), [validity/protection fields](https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-psapi_working_set_ex_block), and [vphone performance findings](https://github.com/YahiaAngelo/vphone-linux/blob/main/docs/PERFORMANCE.md). The existing16KiB target pages, TLB options and2GiB translation cache already follow that fork's recommendations. CPU execution remains TCG, so GPU support alone cannot remove serial app-launch or guest-service delays.
+
 Local evidence: the latest GPU lease cleanup tests passed (including real mip scratch and index/mesh pool returns on unguarded runtime threads); optimized renderer build passed; real iOS welcome/setup rendered on RTX4070Ti. Camera Control after the final fix, stable apps, sustained FPS, exact-step snapshot restore and fresh-PC reproducibility remain open. The earlier independent blur-shader refusal is not established as resolved. Full upstream suites have not been run; no merge acceptance is implied.
 
 `tests/test_launch.py` uses disposable fake files, checks plan arguments and refusal paths, and never boots a guest. Historical local result counts and limitations are in the handoff. The running native device and all private evidence remain outside Git.

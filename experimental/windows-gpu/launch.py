@@ -103,6 +103,11 @@ def plan(bundle, memory='8G', cores=4, port=19488, headless=False, vusb_port=Non
            'VPHONE_TARGET_PAGE_BITS': '14', 'VPHONE_TLB_RANGE_PAGES': '1',
            'VPHONE_XPAGE_LINKS': '1', 'VPHONE_RET_PREFETCH': '2',
            'QEMU_TLB_UNSYNCED': '2', 'VPHONE_XHCI_NONREMOVABLE': '0x1fe'}
+    # Normal interaction should not synchronously trace every pointer/report and
+    # FIFO command. Explicit diagnostics remain available when investigating.
+    env.update(REIMS_EXPERIMENT_ASTC_CPU='1', REIMS_EXPERIMENT_ASTC_NIL='0', REIMS_VGPU_FORWARD_FOCUS_CLICK='1',
+               REIMS_VGPU_LOG='warn', REIMS_VGPU_INPUT_TRACE='0',
+               VPHONE_TOUCH_TRACE='0', REIMS_VGPU_STATS='0')
     return {'args': args, 'environment': env, 'paused': True,
             'limitations': ['Experimental GPU setup observed; stable usable iPhone acceptance incomplete',
                              'No Windows vsock/vphoned or upstream toolbar integration',
@@ -123,9 +128,13 @@ def main():
     parser.add_argument('--serial-log', help='New serial log file; created only by QEMU with --run')
     parser.add_argument('--aux-override', help='Separate temporary auxiliary image for SSH DFU boot; restore-only required')
     parser.add_argument('--run', action='store_true', help='Open the isolated bundle writable and start paused; QMP cont is separate')
+    parser.add_argument('--diagnostics', action='store_true', help='Enable input, FIFO, GPU timing and per-second frame diagnostics')
     options = parser.parse_args()
     result = plan(options.bundle, options.memory, options.cores, options.qmp_port, options.headless,
                   options.vusb_port, options.serial_log, options.restore_only, options.aux_override)
+    if options.diagnostics:
+        result['environment'].update(REIMS_VGPU_INPUT_TRACE='1', VPHONE_TOUCH_TRACE='1', REIMS_VGPU_STATS='1',
+            REIMS_VGPU_LOG='warn,reims_vgpu_vulkan::gpu::timing=debug,reims_vgpu_core::fifo::commands=debug,reims_vgpu_vulkan::os::windows::vm=debug')
     print(json.dumps(result, indent=2))
     if options.run:
         class MemoryStatus(ctypes.Structure):

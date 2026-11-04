@@ -37,6 +37,10 @@ class LaunchPlan(unittest.TestCase):
     def test_paused_plan_preserves_bundle_and_storage_aliases(self):
         before = {p.name:hashlib.sha256(p.read_bytes()).digest() for p in self.bundle.iterdir()}
         plan = launcher.plan(self.bundle,"4G",4,19688,vusb_port=19690,serial_log=self.root/"new-serial.log")
+        self.assertEqual(plan["environment"]["REIMS_VGPU_LOG"], "warn")
+        self.assertEqual(plan["environment"]["REIMS_VGPU_INPUT_TRACE"], "0")
+        self.assertEqual(plan["environment"]["VPHONE_TOUCH_TRACE"], "0")
+        self.assertEqual(plan["environment"]["REIMS_EXPERIMENT_ASTC_CPU"], "1")
         args = plan["args"]
         drives = [args[i+1] for i,v in enumerate(args) if v=="-drive"]
         self.assertEqual(len(drives),5)

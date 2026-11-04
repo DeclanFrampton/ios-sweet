@@ -7,7 +7,7 @@
       "url": "https://github.com/tqmane/reims-vgpu.git",
       "base_commit": "8f316b5f21908ddeb1e454ce50356ed6e1d2f6cf",
       "patch": "patches/reims-windows-16k.patch",
-      "patch_sha256": "37a29106ab5aace6dc23deb09ca3a622a068aa18025af8e695703c12e593cb45",
+      "patch_sha256": "70a0d6efb27294525d2dabbb6f3769d0110e9b307663035af2d35e22c2ef0cf9",
       "files": {
         "Cargo.lock": "3d6bca7a13b79e891bf0c9b3e88f815fd15b1298265d16b0317ef87d4be6076c",
         "Cargo.toml": "1beade7b91bafae9453f4a3f811b18b9f98d66adf5e081c124b52f21bb112b2c",
@@ -22,19 +22,20 @@
         "crates/reims-vgpu-vulkan/Cargo.toml": "415c30bcf67142c286dac1d5e7ac79ab50a8e81d0bfcb724d570c2d50bdd09b9",
         "crates/reims-vgpu-vulkan/src/api.rs": "0f5996ebc54141971482396368c3f5a0d066cb0b887cd70a51e2fd66a091def7",
         "crates/reims-vgpu-vulkan/src/gpu.rs": "03c8a60eb6f4712293d04a1afe45503010bb2b64140767e1c61e58f23c7b15c6",
+        "crates/reims-vgpu-vulkan/src/gpu/astc.rs": "bfee92d81d229a7abc7073687f94a8fa4785efef5b4ab2798e91327b453a4372",
         "crates/reims-vgpu-vulkan/src/gpu/backing.rs": "04845c79472753873348a4704beb18c31249fba5028825cc5b1d83bf7dd04667",
         "crates/reims-vgpu-vulkan/src/gpu/device.rs": "edbe67b421bae82df9124597f91e69dd96f25ed20c8bb2e4e1a72d57e4ae09a9",
         "crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs": "eb8977d88f03b8b658fdc7ace55fd427b3564807b2c63d98271271175816a8d8",
         "crates/reims-vgpu-vulkan/src/gpu/resource.rs": "3c983f6ebbecd4376867ad67c62217d9ecc5a7f5b93b18cd0fae7ff10069730f",
         "crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs": "f69c1a83248587cd63b77d2f043d669e391fafcf337e99659afe54fed3b4966c",
         "crates/reims-vgpu-vulkan/src/os/surface.rs": "74c5197a77d9b69aeb21153b6caf0d5d35a1a63f639c566937c731b2c1211a01",
+        "crates/reims-vgpu-vulkan/src/os/windows/api.rs": "fc356bbdc3f74a17e34a76dc1e9e8f5a10fa589b58856152fcb10b70b96f44f3",
         "crates/reims-vgpu-vulkan/src/os/windows/threads.rs": "487255b977ba1cad06b4aeeb058953fe831d1e6c2c9605403227b7dc18632b8b",
-        "crates/reims-vgpu-vulkan/src/os/windows/vm.rs": "738bb8efb5642e7b3a84cdd6079b35002de4d1721c311404838cd917b1ed0c39",
+        "crates/reims-vgpu-vulkan/src/os/windows/vm.rs": "3a18682ea4bc841aa3119466b564e8524316e365858d27b7df5fa001af9d4a15",
         "crates/reims-vgpu-window/src/native/linux/input.rs": "bb318a2de9ff75464dbf8bf45b7096b27ebb13c3b36a6aba37afacbae1d06200",
         "crates/reims-vgpu-window/src/native/linux/sdl.rs": "460f47d39213368e1b96d1c4f7a6f6756b28052d54a6c242af9585b6799277ff",
         "docs/windows-guest-pages-16k.md": "852765a6a5a2f15b344e93e421e4d0b0bc5d045b00ceecbfd3900b603d463e45",
-        "tests/windows-guest-pages-16k.c": "7613d9677caf6c8e7f4d2a2f48da7dae56444be527d4f2d13b0fad7c6e22ff0e",
-        "crates/reims-vgpu-vulkan/src/gpu/astc.rs": "bfee92d81d229a7abc7073687f94a8fa4785efef5b4ab2798e91327b453a4372"
+        "tests/windows-guest-pages-16k.c": "7613d9677caf6c8e7f4d2a2f48da7dae56444be527d4f2d13b0fad7c6e22ff0e"
       }
     },
     {

@@ -1,5 +1,5 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index f2233df..e457588 100644
+index f2233dffa13858386da5bb7b58c1dce102bdc2a3..e4575886049ec7d4d83b8c15ad182c87b82c8928 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -20,6 +20,52 @@ dependencies = [
@@ -293,7 +293,7 @@ index f2233df..e457588 100644
  name = "shlex"
  version = "2.0.1"
 diff --git a/Cargo.toml b/Cargo.toml
-index 6d9bdcf..fa7cfb4 100644
+index 6d9bdcf8b3d07acd75ef8f8d92f1d0d8eeab2617..fa7cfb43de3f5e3f9d4bcb3d5359657ed80bef76 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -106,3 +106,21 @@ debug-assertions = true
@@ -319,7 +319,7 @@ index 6d9bdcf..fa7cfb4 100644
 +[profile.ios-perf.package.astcenc-sys]
 +opt-level = 3
 diff --git a/crates/reims-vgpu-c/Cargo.toml b/crates/reims-vgpu-c/Cargo.toml
-index 507bb94..3905fef 100644
+index 507bb94a302523b6b78950b62191f2366f177d6f..3905fefee857ed9e9877000c51fd1ec1865b3d63 100644
 --- a/crates/reims-vgpu-c/Cargo.toml
 +++ b/crates/reims-vgpu-c/Cargo.toml
 @@ -14,6 +14,8 @@ license.workspace = true
@@ -332,7 +332,7 @@ index 507bb94..3905fef 100644
  # SDL3's window on macOS (`reims-vgpu`'s `macos-sdl`), on by default: `--no-default-features`
  # builds the macOS library without SDL, its windows AppKit's alone.
 diff --git a/crates/reims-vgpu-c/src/window.rs b/crates/reims-vgpu-c/src/window.rs
-index 7b17502..dd26365 100644
+index 7b17502c1f0415c8d459164bfbf13194e69fc27b..dd26365ee7a7e4c6bd8cb549bbb345df85fb1fc7 100644
 --- a/crates/reims-vgpu-c/src/window.rs
 +++ b/crates/reims-vgpu-c/src/window.rs
 @@ -328,7 +328,9 @@ pub(crate) fn window_callbacks(t: &Arc<Table>, c: &RvgWindowCallbacks) -> Window
@@ -346,7 +346,7 @@ index 7b17502..dd26365 100644
                  ffi::host_call("pointer", || unsafe {
                      f(t.ctx(), x, y, width, height, buttons)
 diff --git a/crates/reims-vgpu-core/Cargo.toml b/crates/reims-vgpu-core/Cargo.toml
-index d726c94..0b7e7c7 100644
+index d726c943926838bee9ca61c1829a0e3cc8ba9572..0b7e7c7f239c45661fcdfe3d00dacdc4b00669f8 100644
 --- a/crates/reims-vgpu-core/Cargo.toml
 +++ b/crates/reims-vgpu-core/Cargo.toml
 @@ -8,6 +8,8 @@ publish.workspace = true
@@ -359,7 +359,7 @@ index d726c94..0b7e7c7 100644
  testkit = []
  
 diff --git a/crates/reims-vgpu-core/src/display/page.rs b/crates/reims-vgpu-core/src/display/page.rs
-index 2ac5cb8..94dc659 100644
+index 2ac5cb845073f38845b0d6063d18e2d19c7c0208..94dc659ab3b3ac4f98c6e58416a20fa5c9d33df3 100644
 --- a/crates/reims-vgpu-core/src/display/page.rs
 +++ b/crates/reims-vgpu-core/src/display/page.rs
 @@ -223,9 +223,9 @@ mod tests {
@@ -403,7 +403,7 @@ index 2ac5cb8..94dc659 100644
      fn a_4k_page_ends_in_matrix_31() {
          assert_eq!(color_matrix(30, 2, 3) + 4, 0xfe0);
 diff --git a/crates/reims-vgpu-core/src/guest/records.rs b/crates/reims-vgpu-core/src/guest/records.rs
-index 9b6d04f..738d4fe 100644
+index 9b6d04fa8930ff1c1a0488d4d57368a9b2a15fe6..738d4fe9a65f942008ae2da3016cf33dcaf50afe 100644
 --- a/crates/reims-vgpu-core/src/guest/records.rs
 +++ b/crates/reims-vgpu-core/src/guest/records.rs
 @@ -22,7 +22,17 @@ use crate::num::Truncate;
@@ -444,7 +444,7 @@ index 9b6d04f..738d4fe 100644
      fn guest_page_constants_are_4k_on_x86_64() {
          use crate::{device::root, display, fifo::ring, memory::page_table};
 diff --git a/crates/reims-vgpu-core/src/iosurface/descriptor.rs b/crates/reims-vgpu-core/src/iosurface/descriptor.rs
-index 122b9d1..8b4f6e8 100644
+index 122b9d1cf036ed4dfd86ae5fe5f4f2af4b636045..8b4f6e825b20eaff66038ff284ac184ddedaa988 100644
 --- a/crates/reims-vgpu-core/src/iosurface/descriptor.rs
 +++ b/crates/reims-vgpu-core/src/iosurface/descriptor.rs
 @@ -447,7 +447,7 @@ pub(super) fn plane_specs(
@@ -466,7 +466,7 @@ index 122b9d1..8b4f6e8 100644
          slot.pages
              .iter()
 diff --git a/crates/reims-vgpu-core/src/iosurface/device.rs b/crates/reims-vgpu-core/src/iosurface/device.rs
-index 035fc0a..f8d1078 100644
+index 035fc0adcae714c92282d13c34033566ba97666e..f8d10787192039030f9ff40cdb09103c5dbdc98c 100644
 --- a/crates/reims-vgpu-core/src/iosurface/device.rs
 +++ b/crates/reims-vgpu-core/src/iosurface/device.rs
 @@ -275,7 +275,8 @@ impl<P: Platform> IoSurfaceHostDevice<P> {
@@ -499,7 +499,7 @@ index 035fc0a..f8d1078 100644
  
      /// Another reference to the IOSurface mapped at `mapping_id`, made on the device's queue;
 diff --git a/crates/reims-vgpu-core/src/iosurface/regs.rs b/crates/reims-vgpu-core/src/iosurface/regs.rs
-index 9afa2ab..eefd840 100644
+index 9afa2abd0d65be0bf3e65c732d1691470bae7d7f..eefd840ca1a1c0e7a21b9d4fd6a70c0c8b2bf5e2 100644
 --- a/crates/reims-vgpu-core/src/iosurface/regs.rs
 +++ b/crates/reims-vgpu-core/src/iosurface/regs.rs
 @@ -266,6 +266,27 @@ mod tests {
@@ -531,7 +531,7 @@ index 9afa2ab..eefd840 100644
          use super::*;
  
 diff --git a/crates/reims-vgpu-vulkan/Cargo.toml b/crates/reims-vgpu-vulkan/Cargo.toml
-index bbd5218..41a04a2 100644
+index bbd521885f33545f62b7a08b0fb6e7f1ab061697..41a04a213a757abbc011db142bfd6c92521386c5 100644
 --- a/crates/reims-vgpu-vulkan/Cargo.toml
 +++ b/crates/reims-vgpu-vulkan/Cargo.toml
 @@ -8,6 +8,8 @@ publish.workspace = true
@@ -552,7 +552,7 @@ index bbd5218..41a04a2 100644
  
  [lints]
 diff --git a/crates/reims-vgpu-vulkan/src/api.rs b/crates/reims-vgpu-vulkan/src/api.rs
-index ae96a7e..5f59491 100644
+index ae96a7e58091fb035779b1eafff761a4d56dc238..5f594915713ca45ef8db2548dfd2c512b922c448 100644
 --- a/crates/reims-vgpu-vulkan/src/api.rs
 +++ b/crates/reims-vgpu-vulkan/src/api.rs
 @@ -40,6 +40,7 @@ mod tests {
@@ -564,7 +564,7 @@ index ae96a7e..5f59491 100644
              device: d.clone_ref(),
              surface: None,
 diff --git a/crates/reims-vgpu-vulkan/src/gpu.rs b/crates/reims-vgpu-vulkan/src/gpu.rs
-index 5c629d0..225b683 100644
+index 5c629d04bcf99d038a205b335aa6654d97d7571b..225b6834b18845bdffba9ebc1778cc358f2e6f6c 100644
 --- a/crates/reims-vgpu-vulkan/src/gpu.rs
 +++ b/crates/reims-vgpu-vulkan/src/gpu.rs
 @@ -19,6 +19,7 @@
@@ -577,7 +577,7 @@ index 5c629d0..225b683 100644
  pub mod command;
 diff --git a/crates/reims-vgpu-vulkan/src/gpu/astc.rs b/crates/reims-vgpu-vulkan/src/gpu/astc.rs
 new file mode 100644
-index 0000000..7492af1
+index 0000000000000000000000000000000000000000..7492af1668cb6f28a61e08a89fef5abf716a316c
 --- /dev/null
 +++ b/crates/reims-vgpu-vulkan/src/gpu/astc.rs
 @@ -0,0 +1,485 @@
@@ -1067,7 +1067,7 @@ index 0000000..7492af1
 +    }
 +}
 diff --git a/crates/reims-vgpu-vulkan/src/gpu/backing.rs b/crates/reims-vgpu-vulkan/src/gpu/backing.rs
-index 8f1120d..da96aaf 100644
+index 8f1120d5919375476cb72dd716fcff3192619a64..da96aafed1584aa9ebc13d4c6bf208fd6abbd964 100644
 --- a/crates/reims-vgpu-vulkan/src/gpu/backing.rs
 +++ b/crates/reims-vgpu-vulkan/src/gpu/backing.rs
 @@ -1012,7 +1012,13 @@ pub(crate) fn gather(
@@ -1086,7 +1086,7 @@ index 8f1120d..da96aaf 100644
          if !vm.readable(source, span.end - span.start) {
              return None;
 diff --git a/crates/reims-vgpu-vulkan/src/gpu/device.rs b/crates/reims-vgpu-vulkan/src/gpu/device.rs
-index 4a54086..03568ac 100644
+index 4a5408611ea5a75b2250a70113e6752b5266ecef..03568accd255f98fb92385989894ac885f5252fd 100644
 --- a/crates/reims-vgpu-vulkan/src/gpu/device.rs
 +++ b/crates/reims-vgpu-vulkan/src/gpu/device.rs
 @@ -45,6 +45,27 @@ use reims_vgpu_core::raise::{Kept, OnFault, RaiseResult, keep_forever};
@@ -1182,7 +1182,7 @@ index 4a54086..03568ac 100644
              device: self.clone_ref(),
              space,
 diff --git a/crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs b/crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs
-index 3a89d2b..c2a0257 100644
+index 3a89d2bc4ba44a0bd2adecaf8a6b27230093f107..c2a0257692c9a8c46f2b785dc591db75e67cdfd1 100644
 --- a/crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs
 +++ b/crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs
 @@ -717,6 +717,11 @@ impl BlitEncoder<VulkanPlatform> for VulkanBlitEncoder {
@@ -1242,7 +1242,7 @@ index 3a89d2b..c2a0257 100644
                  let shape = || {
                      buffer_copy_shape(
 diff --git a/crates/reims-vgpu-vulkan/src/gpu/resource.rs b/crates/reims-vgpu-vulkan/src/gpu/resource.rs
-index fd22335..4d48603 100644
+index fd22335ca2ae3b390456f5651b0038648cbbef7d..4d486037592e4661b9ca9d799009df167114adb8 100644
 --- a/crates/reims-vgpu-vulkan/src/gpu/resource.rs
 +++ b/crates/reims-vgpu-vulkan/src/gpu/resource.rs
 @@ -106,6 +106,8 @@ impl BufferObject {
@@ -1367,7 +1367,7 @@ index fd22335..4d48603 100644
              let rows = (bytes_per_row, bytes_per_image);
              return self.replaced_on_surface(sel, raw, (region, level, slice), &bytes, rows);
 diff --git a/crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs b/crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs
-index 45a95e6..a03be73 100644
+index 45a95e6b876b2e6e66be9cc38916e9b62fee1d16..a03be730abf0bdc8b3df5e7c5f32bfcbab2ba906 100644
 --- a/crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs
 +++ b/crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs
 @@ -188,6 +188,7 @@ pub(crate) fn pass_refused(sel: &'static str, d: &rt::RenderPassDescriptor, e: &
@@ -1379,7 +1379,7 @@ index 45a95e6..a03be73 100644
      let name = crate::gpu::format_info::name(sel, raw);
      let metal = if ycbcr_pass_refused(pf) {
 diff --git a/crates/reims-vgpu-vulkan/src/os/surface.rs b/crates/reims-vgpu-vulkan/src/os/surface.rs
-index 44930bb..99849b6 100644
+index 44930bbb60350ebb5540e4a42bf9fbdae9ae7911..99849b6e1566b62152902f05eb015c924004bedb 100644
 --- a/crates/reims-vgpu-vulkan/src/os/surface.rs
 +++ b/crates/reims-vgpu-vulkan/src/os/surface.rs
 @@ -37,13 +37,18 @@ pub(crate) fn plane_facts(surface: &OsSurface, plane: u64) -> Option<rt::IoSurfa
@@ -1403,8 +1403,20 @@ index 44930bb..99849b6 100644
  }
  
  /// What a texture of a two-plane YCbCr format the runtime reads
+diff --git a/crates/reims-vgpu-vulkan/src/os/windows/api.rs b/crates/reims-vgpu-vulkan/src/os/windows/api.rs
+index 9a1d8c1649954175069dc2c6f9f8d494f5e48291..12e2596f45ef960303e79510d71962f4a9807b00 100644
+--- a/crates/reims-vgpu-vulkan/src/os/windows/api.rs
++++ b/crates/reims-vgpu-vulkan/src/os/windows/api.rs
+@@ -57,6 +57,7 @@ pub(super) struct MemoryStatus {
+ 
+ #[link(name = "kernel32")]
+ unsafe extern "system" {
++    pub(super) fn K32QueryWorkingSetEx(process: *mut c_void, buffer: *mut c_void, bytes: u32) -> i32;
+     pub(super) fn GetSystemInfo(info: *mut SystemInfo);
+     pub(super) fn GetCurrentProcess() -> *mut c_void;
+     pub(super) fn GlobalMemoryStatusEx(info: *mut MemoryStatus) -> i32;
 diff --git a/crates/reims-vgpu-vulkan/src/os/windows/threads.rs b/crates/reims-vgpu-vulkan/src/os/windows/threads.rs
-index c17858b..6aaba65 100644
+index c17858bbe4e891756047f25c319b2a2b02297b18..6aaba6546a13dbd75b2231496e37d5bd0e1d268c 100644
 --- a/crates/reims-vgpu-vulkan/src/os/windows/threads.rs
 +++ b/crates/reims-vgpu-vulkan/src/os/windows/threads.rs
 @@ -1,4 +1,4 @@
@@ -1478,13 +1490,53 @@ index c17858b..6aaba65 100644
 +}
 \ No newline at end of file
 diff --git a/crates/reims-vgpu-vulkan/src/os/windows/vm.rs b/crates/reims-vgpu-vulkan/src/os/windows/vm.rs
-index 8a1e3c7..e99b53a 100644
+index 8a1e3c7cc8ee4e5162b4b274e93d58af39abafba..19966e0df52d953621850e89e8216d655e72df22 100644
 --- a/crates/reims-vgpu-vulkan/src/os/windows/vm.rs
 +++ b/crates/reims-vgpu-vulkan/src/os/windows/vm.rs
-@@ -374,11 +374,68 @@ impl Drop for OwnMemory {
+@@ -374,13 +374,113 @@ impl Drop for OwnMemory {
  /// Mach VM's shared-view operations on Windows.
  #[derive(Debug, Default)]
  pub struct WindowsVm;
++
++#[repr(C)]
++struct WorkingPage { address: *mut std::ffi::c_void, flags: usize }
++
++// VirtualQuery scans forward through a uniformly protected region, which is
++// expensive in a multi-GiB guest RAM mapping. Query only the requested resident
++// pages; uncertain/nonresident pages use the existing full metadata check.
++// Nothing is cached across calls, and no guest bytes are touched to fault them in.
++fn resident_readable(ranges: &[std::ops::Range<u64>]) -> Option<bool> {
++    let page = page_size();
++    let mut pages = std::collections::BTreeSet::new();
++    for range in ranges {
++        let length = range.end.checked_sub(range.start)?;
++        if files::readable(range.start, length) == Some(false) { return Some(false); }
++        if length == 0 { continue; }
++        let last = (range.end - 1) & !(page - 1);
++        let mut at = range.start & !(page - 1);
++        loop {
++            pages.insert(at);
++            if pages.len() > 4096 { return None; }
++            if at == last { break; }
++            at = at.checked_add(page)?;
++        }
++    }
++    if pages.is_empty() { return Some(true); }
++    let mut entries: Vec<_> = pages.into_iter().map(|at| WorkingPage { address: ptr(at), flags: 0 }).collect();
++    // SAFETY: the kernel writes exactly this initialized array of pointer-sized
++    // PSAPI_WORKING_SET_EX_INFORMATION pairs. GetCurrentProcess is a pseudo handle.
++    if unsafe { K32QueryWorkingSetEx(GetCurrentProcess(), entries.as_mut_ptr().cast(),
++        u32::try_from(entries.len() * size_of::<WorkingPage>()).ok()?) } == 0 { return None; }
++    for entry in entries {
++        // Microsoft: Valid bit 0; Win32Protection bits 4..14; Bad bit 31.
++        // Ignore protection bits when not Valid. Guard/noaccess pages commonly
++        // report invalid, so they must still go through VirtualQuery.
++        if entry.flags & 1 == 0 || entry.flags & (1usize << 31) != 0 { return None; }
++        let protection = ((entry.flags >> 4) & 0x7ff) as u32;
++        if protection == 0 || protection & (PAGE_NOACCESS | 0x100) != 0 { return None; }
++    }
++    Some(true)
++}
 +
 +// Cache physical VirtualQuery extents only for one validation operation. Logical
 +// sub-page protections are still checked for each input range. No result survives
@@ -1526,6 +1578,7 @@ index 8a1e3c7..e99b53a 100644
 +    /// Validate a set of stable source ranges, reusing physical region queries
 +    /// within this call, while checking every range's logical read permission.
 +    pub(crate) fn readable_ranges(&self, ranges: &[std::ops::Range<u64>]) -> bool {
++        if let Some(readable) = resident_readable(ranges) { return readable; }
 +        let start = std::time::Instant::now();
 +        let mut queries = 0u64;
 +        let readable = readable_batch(ranges, files::readable, |at| {
@@ -1549,8 +1602,12 @@ index 8a1e3c7..e99b53a 100644
 +    }
      /// Whether each byte is committed and readable, without dereferencing guest pointers.
      pub fn readable(&self, address: HostAddr, length: u64) -> bool {
++        let Some(end) = address.addr().to_u64().checked_add(length) else { return false; };
++        if let Some(readable) = resident_readable(&[address.addr().to_u64()..end]) { return readable; }
          if files::readable(address.addr().to_u64(), length) == Some(false) {
-@@ -551,6 +608,53 @@ pub(crate) mod tests {
+             return false;
+         }
+@@ -551,6 +651,80 @@ pub(crate) mod tests {
              .is_ok()
      }
  
@@ -1601,11 +1658,38 @@ index 8a1e3c7..e99b53a 100644
 +        assert!(!vm.readable_ranges(&ranges));
 +    }
 +
++    #[test]
++    fn resident_readable_checks_every_page_and_observes_guard_and_unmap() {
++        let vm = WindowsVm;
++        let at = vm.allocate_anywhere(3*PAGE).unwrap();
++        let base = at.addr().to_u64();
++        // SAFETY: each page belongs to this writable test allocation.
++        for offset in [0, PAGE, 2*PAGE] { unsafe { ptr(base+offset).cast::<u8>().write_volatile(7); } }
++        let ranges = [base+3..base+3*PAGE-3, base+PAGE..base+2*PAGE];
++        assert_eq!(resident_readable(&ranges), Some(true));
++        let mut old = 0;
++        // Protect the interior page directly: logical registry still says readable.
++        assert_ne!(unsafe { VirtualProtect(ptr(base+PAGE),PAGE.to_usize(),PAGE_NOACCESS,&mut old) },0);
++        assert!(!vm.readable_ranges(&ranges));
++        let mut previous = 0;
++        assert_ne!(unsafe { VirtualProtect(ptr(base+PAGE),PAGE.to_usize(),old|0x100,&mut previous) },0);
++        assert!(!vm.readable_ranges(&ranges)); // metadata check must not consume guard
++        let mut info = MemoryInfo::default();
++        assert_ne!(unsafe { VirtualQuery(ptr(base+PAGE),&mut info,size_of::<MemoryInfo>()) },0);
++        assert_ne!(info.protection & 0x100,0);
++        assert_ne!(unsafe { VirtualProtect(ptr(base+PAGE),PAGE.to_usize(),old,&mut previous) },0);
++        assert!(vm.readable_ranges(&ranges)); // nonresident fallback remains accepted
++        assert!(vm.deallocate(at,3*PAGE).is_success());
++        assert!(!vm.readable_ranges(&ranges));
++        assert_eq!(resident_readable(&[5..4]),None);
++        assert_eq!(size_of::<WorkingPage>(),2*size_of::<usize>());
++    }
++
      #[test]
      fn aliases_are_shared_page_aligned_and_outlive_the_source() {
          let vm = WindowsVm;
 diff --git a/crates/reims-vgpu-window/src/native/linux/input.rs b/crates/reims-vgpu-window/src/native/linux/input.rs
-index 62e21ad..0a754cf 100644
+index 62e21ad32dd01dd2c6b029fa5fc9989a9f6f9183..0a754cfc116cec82b08b3426f5ed4d0391543fa4 100644
 --- a/crates/reims-vgpu-window/src/native/linux/input.rs
 +++ b/crates/reims-vgpu-window/src/native/linux/input.rs
 @@ -149,6 +149,8 @@ pub(crate) struct Input {
@@ -1657,7 +1741,7 @@ index 62e21ad..0a754cf 100644
          ToHost::RelativePointer { dx, dy, buttons }
      }
 diff --git a/crates/reims-vgpu-window/src/native/linux/sdl.rs b/crates/reims-vgpu-window/src/native/linux/sdl.rs
-index 0b9629b..a9c28d5 100644
+index 0b9629b193493ea7ce131d0b14cbd4d39e592f4a..a9c28d5c85a6c0ef5baffb53de780476e5dc2579 100644
 --- a/crates/reims-vgpu-window/src/native/linux/sdl.rs
 +++ b/crates/reims-vgpu-window/src/native/linux/sdl.rs
 @@ -142,10 +142,12 @@ pub(crate) fn open(window: &Arc<Window>, borderless: bool, _taken: &[Frame]) ->
@@ -1692,7 +1776,7 @@ index 0b9629b..a9c28d5 100644
          asked: size,
 diff --git a/docs/windows-guest-pages-16k.md b/docs/windows-guest-pages-16k.md
 new file mode 100644
-index 0000000..f43b3d1
+index 0000000000000000000000000000000000000000..f43b3d1ff197a1499b40de3757c8cea9d7e10932
 --- /dev/null
 +++ b/docs/windows-guest-pages-16k.md
 @@ -0,0 +1,24 @@
@@ -1722,7 +1806,7 @@ index 0000000..f43b3d1
 +These tests prove a bounded GPU presentation path. They do not qualify full FIFO, IOSurface, suspend/resume, guest Metal compatibility or iOS boot, nor settle the mixed CRT warning for production use. No existing VM was modified by the tests.
 diff --git a/tests/windows-guest-pages-16k.c b/tests/windows-guest-pages-16k.c
 new file mode 100644
-index 0000000..edf3db4
+index 0000000000000000000000000000000000000000..edf3db4dedbf2dc16c3894ce082ed0b56b2845a0
 --- /dev/null
 +++ b/tests/windows-guest-pages-16k.c
 @@ -0,0 +1,46 @@
