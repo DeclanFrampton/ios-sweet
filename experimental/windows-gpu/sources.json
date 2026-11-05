@@ -7,7 +7,7 @@
       "url": "https://github.com/tqmane/reims-vgpu.git",
       "base_commit": "8f316b5f21908ddeb1e454ce50356ed6e1d2f6cf",
       "patch": "patches/reims-windows-16k.patch",
-      "patch_sha256": "70a0d6efb27294525d2dabbb6f3769d0110e9b307663035af2d35e22c2ef0cf9",
+      "patch_sha256": "c1c477c3912d8c3e566b7d824a6dbbe46721ba7b7c3c5a1a699824ffc610596a",
       "files": {
         "Cargo.lock": "3d6bca7a13b79e891bf0c9b3e88f815fd15b1298265d16b0317ef87d4be6076c",
         "Cargo.toml": "1beade7b91bafae9453f4a3f811b18b9f98d66adf5e081c124b52f21bb112b2c",
@@ -33,7 +33,7 @@
         "crates/reims-vgpu-vulkan/src/os/windows/threads.rs": "487255b977ba1cad06b4aeeb058953fe831d1e6c2c9605403227b7dc18632b8b",
         "crates/reims-vgpu-vulkan/src/os/windows/vm.rs": "3a18682ea4bc841aa3119466b564e8524316e365858d27b7df5fa001af9d4a15",
         "crates/reims-vgpu-window/src/native/linux/input.rs": "bb318a2de9ff75464dbf8bf45b7096b27ebb13c3b36a6aba37afacbae1d06200",
-        "crates/reims-vgpu-window/src/native/linux/sdl.rs": "460f47d39213368e1b96d1c4f7a6f6756b28052d54a6c242af9585b6799277ff",
+        "crates/reims-vgpu-window/src/native/linux/sdl.rs": "9190a2b5767746fc116c300d312db0d046730cb118124b1160512c33a724b0a9",
         "docs/windows-guest-pages-16k.md": "852765a6a5a2f15b344e93e421e4d0b0bc5d045b00ceecbfd3900b603d463e45",
         "tests/windows-guest-pages-16k.c": "7613d9677caf6c8e7f4d2a2f48da7dae56444be527d4f2d13b0fad7c6e22ff0e"
       }

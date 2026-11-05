@@ -69,6 +69,12 @@ Never run two instances against one bundle. The machine uses multiple views of t
 
 ## Validation and remaining work
 
+### Idle input recovery trial
+
+`--idle-input-workaround` selects an experimental Windows touch profile: a16ms main-loop poll cap and `REIMS_VGPU_WINDOW_KEYBOARD_GRAB=0`. The latter leaves Windows system shortcuts ungrabbed for absolute input; relative-pointer capture retains its required grab. Keyboard focus, button/key release on focus loss and guest input routing remain active. The standard launch profile is unchanged. [SDL documents system-shortcut interception as the purpose of keyboard grabbing](https://wiki.libsdl.org/SDL3/SDL_SetWindowKeyboardGrab).
+
+This trial follows a long-running lock-screen failure where QMP responded immediately, touch/keyboard reports completed through USB, and a stalled-state dump showed the main loop and application CPUs waiting. Releasing capture or pausing/resuming did not reliably unlock it. Those observations do not prove a GPU deadlock or identify a guest root cause. The profile is defensive mitigation under evaluation; a fresh boot alone is not proof of idle recovery. Validation and live limits are recorded in the handoff.
+
 ### Completed setup follow-up
 
 The user reached SpringBoard and opened Settings on the Windows GPU instance. This is post-setup interaction evidence, not sustained smoothness or broad app compatibility. A verified paused-device-file checkpoint preserves completed setup locally; it contains no GPU/RAM state.

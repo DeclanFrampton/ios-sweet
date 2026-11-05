@@ -129,12 +129,15 @@ def main():
     parser.add_argument('--aux-override', help='Separate temporary auxiliary image for SSH DFU boot; restore-only required')
     parser.add_argument('--run', action='store_true', help='Open the isolated bundle writable and start paused; QMP cont is separate')
     parser.add_argument('--diagnostics', action='store_true', help='Enable input, FIFO, GPU timing and per-second frame diagnostics')
+    parser.add_argument('--idle-input-workaround', action='store_true', help='Experimental Windows touch profile: no system-keyboard grab and a 16ms main-loop wait cap')
     options = parser.parse_args()
     result = plan(options.bundle, options.memory, options.cores, options.qmp_port, options.headless,
                   options.vusb_port, options.serial_log, options.restore_only, options.aux_override)
     if options.diagnostics:
         result['environment'].update(REIMS_VGPU_INPUT_TRACE='1', VPHONE_TOUCH_TRACE='1', REIMS_VGPU_STATS='1',
             REIMS_VGPU_LOG='warn,reims_vgpu_vulkan::gpu::timing=debug,reims_vgpu_core::fifo::commands=debug,reims_vgpu_vulkan::os::windows::vm=debug')
+    if options.idle_input_workaround:
+        result['environment'].update(REIMS_VGPU_WINDOW_KEYBOARD_GRAB='0', VPHONE_WIN32_POLL_MAX_MS='16')
     print(json.dumps(result, indent=2))
     if options.run:
         class MemoryStatus(ctypes.Structure):

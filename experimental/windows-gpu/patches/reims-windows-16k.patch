@@ -1741,7 +1741,7 @@ index 62e21ad32dd01dd2c6b029fa5fc9989a9f6f9183..0a754cfc116cec82b08b3426f5ed4d03
          ToHost::RelativePointer { dx, dy, buttons }
      }
 diff --git a/crates/reims-vgpu-window/src/native/linux/sdl.rs b/crates/reims-vgpu-window/src/native/linux/sdl.rs
-index 0b9629b193493ea7ce131d0b14cbd4d39e592f4a..a9c28d5c85a6c0ef5baffb53de780476e5dc2579 100644
+index 0b9629b193493ea7ce131d0b14cbd4d39e592f4a..afd832cf8a5b2627093d0e7fdd0e7828637dcad5 100644
 --- a/crates/reims-vgpu-window/src/native/linux/sdl.rs
 +++ b/crates/reims-vgpu-window/src/native/linux/sdl.rs
 @@ -142,10 +142,12 @@ pub(crate) fn open(window: &Arc<Window>, borderless: bool, _taken: &[Frame]) ->
@@ -1774,6 +1774,37 @@ index 0b9629b193493ea7ce131d0b14cbd4d39e592f4a..a9c28d5c85a6c0ef5baffb53de780476
      Some(Opened {
          sdl,
          asked: size,
+@@ -309,6 +313,9 @@ fn keyboard_focus(window: *mut SDL_Window) -> bool {
+ 
+ /// Grabs the keyboard while captured, and lets it go (the module doc).
+ pub(crate) fn grab_keyboard(shell: &Shell, captured: bool) {
++    #[cfg(windows)]
++    let captured = keyboard_grab_policy(captured, shell.input.0.relative_mouse_mode(),
++        std::env::var_os("REIMS_VGPU_WINDOW_KEYBOARD_GRAB").as_deref() == Some(std::ffi::OsStr::new("0")));
+     // SAFETY: the window is SDL's, on this thread.
+     let grabbed = unsafe { SDL_SetWindowKeyboardGrab(shell.sdl, captured) };
+     if !grabbed {
+@@ -320,6 +327,20 @@ pub(crate) fn grab_keyboard(shell: &Shell, captured: bool) {
+     }
+ }
+ 
++#[cfg(windows)]
++fn keyboard_grab_policy(captured: bool, relative: bool, host_shortcuts: bool) -> bool {
++    captured && (relative || !host_shortcuts)
++}
++
++#[cfg(all(test, windows))]
++#[test]
++fn direct_touch_can_leave_host_shortcuts_ungrabbed() {
++    assert!(!keyboard_grab_policy(true, false, true));
++    assert!(keyboard_grab_policy(true, false, false));
++    assert!(keyboard_grab_policy(true, true, true));
++    assert!(!keyboard_grab_policy(false, true, true));
++}
++
+ /// Whether this owned SDL window actually has relative mode enabled.
+ pub(crate) fn relative_mouse_active(shell: &Shell) -> bool {
+     shell.os.relative_active && shell.input.0.wants_relative_mouse()
 diff --git a/docs/windows-guest-pages-16k.md b/docs/windows-guest-pages-16k.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..f43b3d1ff197a1499b40de3757c8cea9d7e10932
