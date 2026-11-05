@@ -7,3 +7,6 @@ desktop/appliance/Dockerfile text eol=lf
 desktop/helper-toolchain.Dockerfile text eol=lf
 Start-iOS-Sweet-Apps.cmd text eol=crlf
 start.cmd text eol=crlf
+
+# Unified-diff context lines intentionally carry whitespace.
+experimental/windows-gpu/patches/*.patch text eol=lf -whitespace

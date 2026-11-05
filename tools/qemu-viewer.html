@@ -93,7 +93,7 @@ async function refresh(){
 // perform NO snapshots at all while the browser tab is hidden.
 function nextPollInterval(){
  var idle=Date.now()-Math.max(lastInteraction,lastChange);
- return idle<6000?350:(idle<20000?1000:(idle<60000?2500:6000));
+ return idle<6000?280:(idle<20000?1000:(idle<60000?2500:6000));
 }
 function schedulePoll(ms){
  if(pollTimer!==null)clearTimeout(pollTimer);

@@ -1,5 +1,123 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## 3 November 2026 - viewer refresh and GPU investigation
+
+- The saved `memory-release-20261103-192108` snapshot was copied with an
+  exact SHA-256 match and the copied overlay passed `qemu-img check`. The
+  existing native runner started the copy, paused, loaded that snapshot in
+  11.87 seconds, and resumed. The captured display showed the previously open
+  Settings screen. Viewer: localhost 8109; QMP 4445; guest PID 48320 at the
+  time of validation. The original snapshot overlay was not changed. This
+  restored real iOS guest still renders on the CPU; free host RAM fell below
+  2 GiB, so avoid parallel heavy builds. Actual touch after restore and app
+  use have not yet been reverified; do not claim GPU-backed iOS.
+- A no-QEMU synthetic integration joined the pinned Dynarmic JIT to Reims:
+  ARM64 code performed 2048 framebuffer stores and seven virtual-GPU MMIO
+  writes, then SVC. The Windows Reims/metal2vulkan path selected the RTX 4070
+  Ti, issued Vulkan presentation shader work and returned an exact 8192-byte
+  framebuffer; repeated run passed. Evidence and code remain private under
+  `.studio/experiments/gpu-path-audit-20261103/`. This is a synthetic CPU
+  framebuffer presented by the GPU, not an iOS Metal or graphics-stack test.
+- Native Windows Reims virtual-GPU standalone test passed on RTX 4070 Ti:
+  pinned tqmane/reims-vgpu `8f316b5f21908ddeb1e454ce50356ed6e1d2f6cf` and
+  metal2vulkan `7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb` accepted a
+  synthetic 64x32 BGRA EFI framebuffer through its MMIO/C API, produced Vulkan
+  present-shader work, and returned all 8192 bytes unchanged (22 guest presents,
+  17 host encodes; one test). Build succeeded with LNK4098 CRT conflict warning;
+  inspect before production use. Evidence and pinned dependencies remain in
+  `.studio/experiments/gpu-path-audit-20261103/`. This is synthetic GPU
+  presentation, not iOS Metal execution or an integrated guest GPU. The SWEET
+  guest uses a different CPU framebuffer protocol and lacks a Reims PVG driver.
+- Combined the pinned standalone Dynarmic A64 JIT with the native Vulkan
+  external-host-memory test in one isolated Windows process. The RTX 4070 Ti
+  filled a 64 KiB host allocation, then after the Vulkan import was released
+  a synthetic ARM64 program read `0x51a7c0de`, added one, wrote `0x51a7c0df`
+  and delivered SVC; both full GPU readback and guest result passed. Sources,
+  pinned dependencies, binary and build instructions are in the ignored
+  `.studio/experiments/dynarmic-20261103/` directory. This is sequential
+  host-memory interchange, not GPU guest rendering, iOS, or performance proof.
+- At the user's request to free memory, the repaired clone's running VM was
+  saved as `memory-release-20261103-192108` on its own QCOW2 overlay, then
+  stopped; available host RAM rose from about 1.9 to 8.6 GiB. `qemu-img check`
+  passed after stop. The private receipt and exact runtime paths are under
+  `.studio/experiments/ios-exclusion-repair-20261103/`. Restore of this home
+  screen snapshot has not been tested; do not start a cold VM on this overlay
+  and later restore the older snapshot over newer changes.
+- The live standalone viewer now waits 280 ms instead of 350 ms between
+  completed requests during interaction or changing frames. Idle/hidden
+  throttling and the controller's shared-frame cache are unchanged. Reload
+  the viewer to pick up the HTML; no guest restart. Two short eight-request
+  live samples on mostly unchanged pixels measured 394.8 ms versus 318.4 ms
+  mean request-start intervals, not iOS FPS. The actual guest remains CPU
+  rendered and GPU acceleration is not yet integrated.
+- A separate native Windows Vulkan probe on RTX 4070 Ti imported a 64 KiB
+  aligned CPU allocation with `VK_EXT_external_memory_host`, bound it to a
+  buffer, issued a GPU fill, waited on a fence, and verified all 16,384 words
+  in the original CPU allocation. Alignment was 4096 bytes. It passed twice;
+  source and results are ignored under `.studio/experiments/` in
+  `vulkan-host-import-20261103`. This proves a small host-memory/GPU primitive,
+  not guest graphics, renderer compatibility, or any frame-rate improvement.
+- Research lead: vphone-linux uses an Apple paravirtual graphics guest and
+  reims-vgpu/metal2vulkan on native Linux; this iOS 16 guest uses a CPU-backed
+  framebuffer and does not expose that guest driver. Dynarmic is an independent
+  ARM64 CPU execution candidate, not a complete iOS system or graphics bridge.
+- After memory was freed, a standalone Windows Dynarmic A64-only build at commit
+  `a46601580d5512d324104f985b5f0209dc980ddc` passed a synthetic ARM64 JIT
+  arithmetic/store/SVC test (`x0=42`, memory value 42, one SVC), twice. The
+  isolated build uses `XBYAK_CPU_CACHE=0` for the installed Windows SDK and
+  disables interpreter fallback in the test. Source, exact dependency pins,
+  build log and result remain private under `.studio/experiments/dynarmic-20261103/`.
+  This is neither an iOS boot nor application, GPU or performance validation.
+
+## 3 November 2026 - isolated startup and warm-resume experiments
+
+- A disposable 128 MiB ARM VM with the bundled QEMU and the production
+  CPU/GIC/virtio device types restored running CPU registers, RAM, and a
+  paired disk snapshot across a new process. This is synthetic evidence.
+- On this Windows host, an isolated copy of a private Studio overlay booted
+  until guest-agent v7 responded. QEMU `savevm` took 9.95 seconds; the image
+  passed `qemu-img check` after stopping. A new QEMU process using `-loadvm`
+  returned authenticated agent status in 6.86 seconds, and app listing also
+  responded. The screen showed the Apple logo; no interactive lock screen,
+  app launch, clock, or network acceptance was established. Snapshot state
+  was about 2.2 GiB and timing is one sample, not a product guarantee.
+- The original device overlay was copied only after its VM stopped and the
+  copy's SHA-256 matched. The original overlay remains separate. Experiment
+  data is private and ignored under `.studio/experiments/`. A separate
+  one-core boot of another copied overlay reached the Apple logo; three
+  SpringBoard main-thread samples showed the same wait and no guest-agent
+  response was established during the bounded test. Exact private-cache
+  symbolication shows an activation-state request awaiting an XPC reply.
+  The activation daemon repeatedly aborts when setting backup exclusion on
+  its containers. A root-run diagnostic on a disposable directory verified
+  that the same NSURL setter and HFS xattrs work. The actual daemon runs as
+  mobile, whereas the existing target directories are root-owned mode 0755.
+  A clone-only diagnostic confirmed UID 501 receives POSIX EACCES setting
+  exclusion on a root-owned 0755 fixture, succeeds on a mobile-owned fixture,
+  and reads an exclusion set by root. Do not infer a missing lockdown
+  container: that name is a Mach service, not a container.
+- On a separately copied overlay, a bounded root helper preflighted the four
+  existing activation containers, set only NSURLIsExcludedFromBackupKey,
+  and verified their xattrs and unchanged owner/mode. It wrote a one-attempt
+  receipt; its launchd job was removed from the clone before a clean restart.
+  On that restart the previous activation-daemon crash loop stopped, the
+  guest reached the lock screen and an injected home swipe reached the home
+  screen. Private evidence: `.studio/experiments/ios-exclusion-repair-20261103/`.
+  This is one live clone test; app launch, persistence across further boots,
+  and integration into Studio remain unverified. Original overlay SHA-256
+  remained unchanged. The running clone's viewer is localhost port 8109.
+- The x86 preparation appliance logging self-test passed in a disposable VM:
+  WHPX 4.29 seconds versus TCG 11.98 seconds. A synthetic HFSX format, 1200
+  file rsync, SHA-256 and read-only fsck fixture passed both (3.09 seconds
+  WHPX versus 18.52 seconds TCG total). These are small single-run fixtures,
+  not real firmware preparation benchmarks. The WHPX run logged an ignored
+  interrupt-vector warning; no production accelerator change was made.
+- Next: test app launch and repeat snapshot/resume from the interactive screen,
+  with agent, time and network checks; do not disrupt an active user session.
+  A production feature needs disk/RAM pairing, version and configuration
+  pinning, stale-snapshot rejection, crash recovery and fallback. Keep the
+  6 GiB free-RAM gate and original device data intact.
+
 ## 2 November 2026 - fresh-clone mkadt startup repair / runtime r3
 
 - User screenshot is again from `C:\Users\decla\Documents\ios-sweet`, not
@@ -1305,3 +1423,226 @@ What it took today (in order): 0058 HID services (Apple IOHIDFamily-1915 user cl
   XNU kernel and D22AP device tree; the file-picker prompts for them.
   Do not commit any proprietary Apple userland, private captures,
   device IDs, or credentials.
+
+## 2026-11-03: 16 KiB GPU prototype and snapshot recovery
+
+- Isolated Windows Reims experiment in `.studio/experiments/gpu-path-audit-20261103/reims-windows-16k`, local branch `feature/arm64-guest-pages-experiment`, commit `2046067`, adds an opt-in fixed 16 KiB guest-page feature. It is a per-DLL setting, not mixed per-device support. See the ignored `README-16k.md` for pinned dependencies, fixtures, commands and logs.
+- On the NVIDIA RTX 4070 Ti, synthetic normal and last-page fixtures returned all 8,192 expected bytes. Invalid 12 KiB length and out-of-range start were rejected without a frame. Dynarmic generated 2,048 pixel stores and seven MMIO writes; Reims/metal2vulkan produced an exact 8,192-byte GPU readback. Focused geometry test: 1 passed, 2,301 filtered; full suite not run. The build retains MSVCRTD linker warning LNK4098. These results do not demonstrate iOS GPU acceleration or an iOS boot on this platform.
+- The 19:58 `gpu-build-20261103-195831` saved snapshot restored to an iOS ticket-spinlock kernel panic. The cause and timing are not established. Preserved that overlay and panic frame under `.studio/experiments/ios-gpu-test-restore-20261103`. Recovered the earlier `memory-release-20261103-192108` snapshot from an independently hash-verified copy; its Settings screen was observed at the local viewer. Changes after the earlier snapshot may be missing. Do not assume a listed snapshot is usable until its display is inspected.
+- Windows pagefile explicitly configured on C: with 40,968 MiB initial and 65,536 MiB maximum, replacing automatic management; Windows currently reports the earlier allocation and may require restart to apply. No restart performed.
+
+## 2026-11-03: native vphone platform and matched firmware preparation
+
+- The pinned vresearch101 QEMU fork was ported in the ignored `gpu-path-audit-20261103/qemu-vphone-windows` experiment using the Windows section-backed RAM bridge and fixed-16-KiB Reims DLL. Native build passed. A paused 512-MiB disposable machine construction reached QMP prelaunch and initialized Reims on the RTX 4070 Ti; no guest instruction executed. See `README-native-vphone.md` and `native-runtime-manifest.json` there for exact dependencies, patches, warnings, hashes and launch constraints. This is not real iOS GPU verification.
+- Apple iPhone17,3 iOS 26.6.2 (23G90) and cloudOS 26.4 (23E5207q) images were downloaded to the ignored `vphone-firmware-20261103` experiment and SHA-256 verified. Isolated WSL distro `iOS-GPU-Research` on D: has pinned vphone-linux sources, firmware creator, a headless Linux vresearch101 build and locally scoped restore helper changes. A temporary stock cloudOS restore was started to extract its GPU driver. The original Sweet disk is not used. The shared WSL kernel has an active 16 GiB swap file `/var/swap-ios-gpu-research` in the research distro; it is not configured to auto-activate after WSL shutdown. Its `/dev/shm` was expanded only in that distro.
+- The recovered Sweet instance was paused with Settings visible, snapshot `gpu-compile-20261103-203826` recorded on `.studio/experiments/ios-recovery-20261103/ios-test.qcow2`, and stopped for memory. The snapshot has not yet been independently restored or validated; the older known-good source snapshot remains preserved. Resume it from a fresh copied overlay and inspect the screen before claiming success.
+
+## 2026-11-03: matched GPU driver and restore failure investigation
+
+- Restored stock cloudOS on an isolated temporary Linux guest; extracted the ARM64e `AppleParavirtGPUMetalIOGPUFamily.bundle` from its sealed System snapshot using read-only apfs-fuse after 7-Zip could not open it. Three bundle files matched the read-only source; binary SHA-256 `29ba36c7bc87d82c40fa1cecdf357e7a383fa70eb46df0d75869f5ac562aedbc`. A new separate iOS 26.6.2 restore tree prepared and patched successfully with that bundle and compiler plugin.
+- First iOS restore failed after system-image transfer: USB/IP `CMD_UNLINK` parsed/replied to only 24 bytes instead of the kernel's 48-byte header. The failure disconnected the host; APFS inversion later succeeded inside the guest, but `install_splat` failed and the guest reported restore failure. The disk is retained at `/home/iosresearch/work/devices/ios-gpu-26`. Isolated `tools/vusb-usbip.py` was corrected; two regression tests passed including original failure reproduction. See `.studio/experiments/gpu-path-audit-20261103/README-restore-unlink-failure.md` and preserved patch for detail.
+- A fresh retry under `/home/iosresearch/work/devices/ios-gpu-26-retry` ran with the corrected helper, but its 8-GiB guest exhausted the existing 8-GiB WSL memory limit shared with other services. WSL command startup repeatedly timed out. Terminated only the `iOS-GPU-Research` distro; existing Ubuntu and Docker distros remained running and Ubuntu reported memory recovery. Retry disk is partial (about 8.2 GiB allocated), no restore completion reported. Do not claim success or reuse it as a complete guest.
+- Prepared proposed WSL configuration `.studio/experiments/vphone-firmware-20261103/wslconfig-proposed.txt`: memory 16GB, swap 16GB while preserving networking mode and processors. Current user config remains unchanged. Applying requires restart of all WSL workloads; user approval requested. The temporary 16-GiB WSL swap file is not persistent across full WSL shutdown.
+- The pinned linux-apfs-rw module was built against matching WSL kernel and verified by vermagic and 183 imported symbol CRCs; it is not loaded. Path `/home/iosresearch/work/vphone-linux/.build/linux-apfs-rw/apfs.ko`; verification receipt in `/home/iosresearch/work/apfs-module-verification.json`. SSH ramdisk staging and rcodesign 0.29.0 were verified; next CFW stages remain unrun.
+
+## 2026-11-03: native restore bridge and iOSurface mapping fix
+
+- To avoid restarting other WSL workloads, built an isolated Windows QEMU VUSB-to-TCP exporter and confirmed native Windows-to-WSL USB/IP recovery discovery. The CPU Sweet guest was saved to snapshot `native-restore-20261103-225713` on the `ios-available-20261103` overlay and stopped for memory; this newest snapshot has not yet been restored to validate its display. Earlier verified source snapshots remain preserved.
+- The first native restore booted the actual iOS restore kernel, then exited with `memory.map.mapping_length_unaligned`. A directly reproducible IOSurface guest-16-KiB/host-4-KiB mapping failure was fixed according to the pinned upstream page-geometry changes. The post-fix regression and synthetic NVIDIA framebuffer readback passed; actual iOS GPU rendering remains unverified. Previous renderer DLL preserved. See ignored `iosurface-16k-fix-report.txt` and native-vphone experiment README.
+- Added an isolated launcher restore-only mode (paused machine construction tested) and prepared independently copied Windows/WSL control bundles with sparse Windows disks. A first headless restore transferred part of its image; it was cleanly stopped to try a fresh timed USB bridge after a mock showed an approximately 8x NAK-poll improvement. The real timed run measured approximately 1.45 MiB/s on its system image, close to the earlier live rate, so no end-to-end speedup is established. Its 9.52-GB image transfer is active under the `ios-gpu-native-20261103-234119` Windows bundle and matching WSL native-control directory; it has not reported restore completion.
+- This uses a dedicated USB/IP listener on loopback port 3242, QMP 19588, VUSB 19590 and tracked experiment processes. Existing Ubuntu and Docker were not restarted. Before any later disk mutation, verify the native Windows QEMU process has exited; Linux-only process checks are insufficient. CFW still requires APFS module and SSH ramdisk stages, and the native GPU phone has not yet been booted or interaction-tested.
+
+## 2026-11-04: restore transport diagnosis and isolated preparation
+
+- A native restore transferred the system image but failed during installation after an idle USB bulk-IN request was terminated at 30 seconds. The experimental USB/IP bridge now keeps idle bulk-IN requests pending, handles cancellation and reset, and uses corrected USB/IP unlink framing. Unit tests passed on Windows and WSL. These tests do not establish a completed restore.
+- A subsequent isolated restore exposed a different bottleneck in recovery: Windows-to-WSL split USB responses incurred about 42 ms per block. A controlled split-response test took 1.6806 seconds for 40 replies with default TCP behavior and 0.00606 seconds with TCP_NODELAY. This is a transport test, not an iOS performance measurement. The native launcher is being adjusted for a fresh trial; the earlier experimental disk is preserved.
+- An isolated disposable Linux guest loaded and unloaded the matching APFS module, and an independent SSH ramdisk image passed file, symlink and permission checks after injection. Shared WSL workloads were not restarted and the module was not loaded into the shared kernel. Plans and test artifacts remain in the ignored `gpu-path-audit-20261103` directory. Full restore, CFW installation, real guest GPU rendering and usable input remain unverified.
+
+## 2026-11-04: successful isolated iOS restore
+
+- On the fresh `ios-gpu-native-20261104-014425` experiment, `nodelay=on` on the native Windows VUSB socket eliminated the measured recovery transport delay. The real system image transferred at approximately 11.07 MiB/s versus 1.45 MiB/s on the previous attempt. An early DFU-to-recovery mode transition raced the restore client's wait; resuming from the guest's confirmed Recovery Mode succeeded without reusing a failed filesystem restore.
+- The corrected pending USB/IP bridge survived the previous idle timeout and the restore passed `install_splat`, sealed the system volume, and ended with `Status: Restore Finished`, exit 0. The stopped restored guest was backed up to ignored `.studio/backups/ios-gpu-restored-20261104-014425`; compressed disk integrity and full logical comparison passed and the backup manifest reports complete. This verifies restoration and backup only, not a GPU display or working iOS input.
+
+## 2026-11-04: first real GPU-rendered iOS boot
+
+- Prepared SSH ramdisk and installed CFW into the restored isolated guest. Cryptex OS and App files were decrypted with the Linux tool, extracted read-only, and verified by full guest readback; the two symlink modes normalized by Linux were corrected on guest. Shared WSL APFS kernel module was not loaded. CFW receipt recorded GPU bundle, paravirtual heap fix and guest service. Snapshot flip was checked against the saved original block and verified checksum.
+- The first GPU boot faulted because local GPU task allocation limited the guest's 256 GiB virtual address request to 32 GiB. A native fixture reproduced the fault and passed with process isolation enabled, without allocating the requested virtual size as physical memory. With isolation enabled, shader library parsing then failed because the translator required an omitted optional container header. The narrowly scoped parser fix passed 18 container tests and parsed both captured guest inputs; the rebuilt experimental renderer subsequently produced real iOS boot frames on the NVIDIA RTX 4070 Ti.
+- The guest is running and shows an advancing Apple boot progress bar in the Reims window. This is real GPU presentation, but interactive iOS, visual correctness, sustained frame rate and input are not yet verified. Renderer and launcher changes, logs and captured libraries are local ignored experiments; see `gpu-path-audit-20261103/metallib-container-evidence-20261104.md`. The pre-CFW restored disk backup remains in `.studio/backups/ios-gpu-restored-20261104-014425`.
+
+## 2026-11-04: ASTC allocation-failure diagnostic
+
+- Personally inspected the latest ASTC4x4LDR rejection: RTX Vulkan lacks the requested ASTC sampled image format. No ASTC decoder has been implemented. Added opt-in `REIMS_EXPERIMENT_ASTC_NIL=1` experiment in ignored Reims Vulkan device allocation: only Metal format204 returns a logged nil allocation before resource creation, allowing guest-side failure handling instead of host termination. It does not reinterpret compressed data or claim ASTC support.
+- Serial renderer build passed33.75s with the known linker warning; prior deployed DLL preserved as before-astc-nil.dll. Started one controlled normal GPU boot, QMP prelaunch and running verified, Apple logo visually confirmed. Guest handling of the nil allocation and successful startup remain unverified. Logs: gpu-path-audit-20261103/astc-nil-launch.log and bundle .runs-native/astc-nil-serial.log. User requested starting next boot after attempting a fix and no further Astra review.
+
+## 2026-11-04: RGB542 render-store experiment
+
+- The ASTC-nil boot later failed on RGB542 render-pass creation. Personally enabled RGB8_444_2P in the existing YCbCr render-shadow eligibility; existing shader encoder already selects channel-code G/BR output. This is an experimental extension without an Apple render-output oracle. Existing load/blend/resolve restrictions remain.
+- Expanded the RGB surface GPU example with actual clear/store and full backing-buffer comparison for red, including padding, at7x3,1x1,8x2. All three RTX4070Ti GPU read/writeback tests passed. This covers clear/store only, not arbitrary draws/blending. Integrated DLL build passed1m58s with existing linker warning; previous DLL preserved as before-rgb-render.dll.
+- One normal GPU boot started with ASTC-nil opt-in; QMP prelaunch/running and visible Apple logo verified. Live success past the former failing pass remains unverified. Logs: audit/rgb-render-launch.log and bundle .runs-native/rgb-render-serial.log. No Astra used for this work.
+
+## 2026-11-04: public research and durable boot evidence
+
+- Personally reviewed Arm ASTC encoder/decoder, public Rust astc-decode, and Reims upstream QEMU synchronization documentation. Cloned independent astc-decode-reference; its real-image and fuzz tests both passed. No ASTC decoder integration is claimed. Nil-ASTC produces guest task fault `resource249 not found: Metal made no texture`, proving this workaround is incomplete.
+- Added ignored durable-boot.py monitor detached from terminal session; saves process status/exit code to durable-boot-receipt.json. Running diagnostic recovered from a >55s no-frame pause and resumed GPU submissions. Captured astc-stall.dmp; initial PDB mismatched, so exact renderer stack symbols not established. A temporary pause is not proof of deadlock. Earlier exit cause remains unknown.
+- Visually confirmed this boot reached iOS welcome/setup with info button, home indicator and changing localized swipe prompt. Rendering is grossly distorted/missing; two attempted native window swipes did not advance setup. Released capture; guest left running. This is first post-boot GPU UI evidence, NOT usable iPhone or verified input. Next engineering work is actual ASTC carrier/decoder integration with coherent uploads, blits, mip/views, and rendering correctness—not another nil-allocation workaround. User requested personal investigation, no Astra.
+
+## 2026-11-04: float framebuffer-fetch improvement
+
+- Durable monitor captured prior run exit3221226505; full log identifies fatal FramebufferFetch NotImplemented at color1 RGBA16Float with premultiplied source-over. This supersedes the earlier unknown-exit diagnosis.
+- Personally extended ordered source-over support to RGBA16Float, with source left unclamped for floating-point targets; normalized targets retain clamping. Emitted-SPIRV arithmetic test includes negative and above-one source/destination values. Direct storage-form test covers float target and full/partial/no write masks. Both direct tests passed. Fixture compile/link test was explicitly SKIPPED because llvm-as unavailable; do not count it as end-to-end coverage. No GPU float-fetch render oracle or guest success claimed.
+- Renderer build passed2m04s with known linker warning. Preserved before-float-fetch.dll. Independently monitored boot running via float-fetch-boot.py, receipt float-fetch-boot-receipt.json, logs float-fetch-launch.log and bundle .runs-native/float-fetch-serial.log. Apple logo visible; prior fatal path not yet reached/verified. All experimental shader and runtime changes remain ignored and guest backups preserved.
+
+## 2026-11-04: display scale correction
+
+- Logs still show missing-resource faults from opt-in ASTC nil allocations; no decoder fix claimed. Confirmed previous display mismatch:430x932 physical output with boot-video3xscale gives~143x311logicalpoints, matching oversized UI. Backed up nvram/gfx-res with SHA256 receipt under ignored display-scale-backup-20261104.
+- QMP stop attempt closed listener but VM remained in teardown; stopped exact unresponsive QEMU PID63352 before file edits. Applied existing display-scale.py to stopped original working NVRAM (2x); verified only instruction bytes at0x2fa08 changed. Set gfx-res860x1864. This yields430x932logicalpoints with2.25x fewer pixels than1290x2796@3x. Original settings recoverable from backup. WSL controltree remains older; sync deliberately needed before future restore workflows.
+- Started independent monitored display-fixed boot; running receipt and visible Apple logo confirmed in larger framebuffer. Setup UIscale/response notyetverified. Logs display-fixed-launch.log and bundle .runs-native/display-fixed-serial.log. Guest left running.
+
+## 2026-11-04: ASTC research and display-fixed exit
+
+- Display-fixed monitored run exited3221226505; finalfatal is RGB542 RenderPipeline Format NotImplemented. Earlier ASTC-nil generated missingtexture resource faults. This separates terminal crash from ASTC degradation; resolution itself is not identified as fatal cause.
+- Public Arm codec/API and ASTC format overview provide decompression reference. ASTC linear decoding normally usesfp16 intermediates; tested Rustreference returnsRGBA8 and is not automatically precision-equivalent. Research/implementation requirements captured in ignored astc-research-diagnosis-20261104.md, including observed shared onelevel2D ASTC4x4 textures and odd sizes.
+- No blind guard removal, decoder integration claim, or restart during diagnosis. Next: capture exact RGB542 failing pipeline descriptor and implement coherent ASTC decoded storage using a precision-appropriate reference. No Astra used.
+
+## 2026-11-04: GPU-tested RGB542 source-over blend
+
+- Personally enabled blend capability for render-shadow representation while keeping explicit link refusal for other two-plane formats. RGB542 retains partialRGB-mask restrictions. Shadow float blending followed by existing G/BR encoding is experimental; no Apple hardware oracle claimed.
+- Expanded authored GPU example to full-screen half-red over blue source-over draw, expected raw purple G/BR planes and unchanged padding, at7x3,1x1,8x2. Actual RTX4070Ti GPU tests all passed. Synthetic authored shader assembled with installed clang (target-triple override warning). Prior direct read and clear/store tests included.
+- Renderer build passed2m00s with known linker warning; DLL backup before-rgb-blend.dll. Independent monitored rgb-blend boot running, visible Apple logo confirmed,860x1864@2x retained. Live previous pipeline failure notyetverified; ASTC-nil remains diagnostic and missingtextures unresolved. Receipt rgb-blend-boot-receipt.json; logs rgb-blend-launch.log and bundle .runs-native/rgb-blend-serial.log. No Astra used.
+
+
+## 2026-11-04: real ASTC decode and ordered buffer-upload fallback
+
+- Replaced the nil-texture experiment with an opt-in ASTC4x4LDR fallback in ignored Reims sources. Public Arm codec5.3.0 via pinned astcenc-rs/astcenc-sys0.2.0 decodes into fp16 sampled backing; original compressed blocks and guest format204 remain separate. Reuses one-thread decompression-only contexts. Scope is shared sampled 2D textures with one mip/layer/sample and dimensions up to4096; other shapes and unsupported copy/fill paths explicitly refuse. This is CPU texture decoding followed by GPU sampling, not native NVIDIA ASTC support.
+- Three public ASTC images matched an independent pinned decoder within2/255 (UNORM8 reference versus fp16), and actual RTX4070Ti shader sampling/readback passed including padded rows, odd edges and partial writes. First real retry hit the explicit buffer-to-texture guard after86.5s, proving iOS uses GPU blit uploads. That guarded failure and prior DLL remain preserved.
+- Added runtime deferred CPU-decode transfer segments: GPU copies source bytes to coherent readback, scheduler waits for preceding GPU batch, host decodes without nested GPU calls, then records upload before later commands. Imported-buffer replay logging preserves the operation. Four focused tests passed0.63s, including a Private GPU-only producer buffer, subsequent source overwrite and ordered partial upload. This proves the synthetic ordering path, not guest usability.
+- Integrated build passed35.92s with the existing MSVCRTD LNK4098 warning. Deployed DLL SHA2561e2dac4f42ebec566e62ffe9ec9f0344a526c28e49e86baf1643fd88182fa8ec; before-astc-ordered.dll and before-astc-cpu.dll preserve previous versions. Started one monitored astc-ordered boot with ASTC_CPU enabled and ASTC_NIL removed. Logs/receipt astc-ordered-launch.log and astc-ordered-boot-receipt.json; guest serial .runs-native/astc-ordered-serial.log. Await actual texture-upload, setup and input evidence. No language reset or English recovery claimed. Research, constraints and exact scripts: ignored gpu-path-audit-20261103/astc-cpu-fallback-20261104.md. No Astra used.
+
+- Live astc-ordered result:66 allocations and66 completed GPU-ordered ASTC decodes, no missing texture resource fault or platform fatal. Welcome UI and localized prompt visible, and an information-button click opened the device-information panel. Rendering remains incomplete/black, swipes did not reach the language picker, and later FIFO stamp waits led to another guest GPU reset/detach stall. ASTC is an incremental fix; usable iPhone and English recovery remain unverified. Process16908 was alive but stalled; no blind third boot. Small dump astc-ordered-stall.dmp and LLDB trace saved. Available PDB mismatches this debug0 DLL, so exact Rust stack cause is not established. Next: a matching-symbol build and first-stall FIFO/worker capture, rather than bypassing synchronization.
+
+## 2026-11-04: measured CPU bottlenecks and Windows VM validation improvement
+
+- Verified host Ryzen5 5600X,6cores/12threads,32GiB RAM. Guest ARM CPU still runs under TCG. QEMU already uses optimization2, but the Rust renderer was opt0. Added ignored ios-perf profile (opt2, line tables, overflow/debug checks retained, codecopt3). Build passed15m04s and four GPU regressions passed. Public ASTC fixture decoding dropped from about65ms to5.7ms at256x256 and60ms to3ms at224x288; these are diagnostic fixture timings, not phone FPS. Separate launcher raises TCG cache512MiB to2048MiB, with guest+4GiB free-memory guard; guest remains4GiB/4vCPU. Upstream performance documentation recommends the larger translation cache to reduce retranslation.
+- The optimized boot still developed pauses. Detailed timing showed ExecIndirect3 FIFO calls around0.7-2.1s while recent command-buffer completion medians were about2-3ms. Symbolized slow-work dump shows worker89 in NtQueryVirtualMemory/VirtualQuery -> WindowsVm::readable -> backing::gather -> Backing::replace -> heap ensure_physical -> prepare_resources. Execution FIFO waited for the service reply. This is concrete CPU memory-validation evidence; later post-reset idle stacks are not proof of the original cause.
+- Correction: LLDB's earlier symbol rejection was its PDB reader selection. LLDB_USE_NATIVE_PDB_READER=1 loads matching symbols; GUID/age were checked directly. New line tables resolve project frames. The old debug0 build still lacked most project source information. Exact first optimized DLL/PDB preserved under ignored ios-perf-symbols.
+- Implemented Windows-only validation of source spans in ascending address order with per-operation reuse of VirtualQuery extents. Every logical permission check remains; no cache survives a call; remapping order unchanged. Microsoft documents that VirtualQuery describes consecutive pages forward from the queried page, so address ordering matters. Three batch/protection tests passed, four ASTC/GPU regressions passed, and three existing alias/refusal/read-only regressions passed:10 focused tests total, full suite not run.
+- Native batch build passed2m23s. Deployed DLL SHA2568a9e87a265d33fcc30e5477a772f05f23719e1a25577d8b8adca3e07a7c173fe, GUID42213845-6014-4ED6-ABD6-F4A13FA56FD1, matching PDB retained. Previous pair backed up in before-vm-batch-symbols. One controlled vm-batch boot is running; QMP prelaunch/cont succeeded. Native QEMU PID70676, launcher receipt pid53628 are fragile identifiers. Host log vm-batch-launch.log timestamps events and logs VM query counts; guest serial .runs-native/vm-batch-serial.log. Actual reduction in guest pauses and usable English setup are pending. Current research/commands: ignored ios-performance-investigation-20261104.md. No Astra, shared WSL restart or host restart used.
+
+## 2026-11-04: ASTC6x6 sRGB fallback and remaining private mip chain
+
+- vm-batch exited3221226505 after289s on unsupported pixel format190 ASTC6x6_sRGB. Windows batch validation improved the conditional distribution of logged ExecIndirect3 calls (only >=5ms) in90-200s: median180.1->44.1ms, p95691.4->100.4ms, max2133.2->215.3ms. Different boot progression limits comparison; not sustained FPS proof.
+- Extended ignored ASTC fallback with6x6 block geometry and LdrSrgb decode; explicitly linearizes RGB for RGBA16F sampling while alpha remains linear. Own-format views retain the guest format. Original singlelevel/shared descriptor bounds remain enforced. Arm reference format/encoding docs and local codec source informed the change.
+- Five focused tests passed: six public4x4/6x6 images matched independent decoder, midtone sRGB/alpha checked, GPU sampling/readback with padded/partial/invalid uploads and producer/decode/consumer ordering passed for both footprints. Native optimized build passed4m22s. Previous pair backed up before-astc6-symbols; source snapshot astc6-source-snapshot, hash manifest astc6-deploy.json.
+- One controlled astc6 retry reached welcome and then language picker, finally an English country-selection screen. Click-and-drag up is the correct gesture; transitions can take a long time. Input was not conclusively dead: do not repeat that hypothesis. CUA restored maximized window, observed English country list. No country choice or agreement accepted by agent.
+- This run subsequently exited3221226505 at315s. Fatal310.017s refuses ASTC6x6SRGB2048x2048 with3mips, ResourceOptions32(private), sampled2D. This exceeds tested shared/singlelevel contract; do not bypass validation or claim resolved. No subsequent boot. Receipt astc6-boot-receipt.json; host astc6-launch.log and guest .runs-native/astc6-serial.log. PreviousQEMU31516 is exited. Next: implement/test per-mip compressed storage and GPU-ordered private texture uploads with correct own-format view offsets, then rebuild/retry.
+- Performance evidence: CPU ARM translation remains necessary on Ryzen; GPU presentation often about2ms with CPU/preparation submission gaps. VRAM is not general guestRAM or a remedy for CPU translation. English setup was seen, but stable usability and displayed FPS remain unverified.
+
+## 2026-11-04: private ASTC mip uploads implemented and tested
+
+- Replaced single compressed store with shared per-mip stores in ignored astc.rs. Texture own-format views retain only parent-relative mip range. Shared textures initialize decoded levels; private initial contents remain undefined until GPU upload, as allowed. CPU private uploads still refuse. Decoded image keeps original private storage; GPUordered buffer uploads target an own-format onelevelview, retaining correct mip offsets and producer ordering. Supported descriptors remain bounded sampled2D, <=4096, valid mip count, shared/private, one array/sample.
+- Six focused tests passed in0.72s. New actual RTX4070Ti test uploaded/readback all3private6x6sRGB mip levels with odd dimensions, checked private CPU refusal and subview storage/range bounds. Previous public image, colour, padded/partial uploads, GPUordering tests still pass. Full suite not run. Native build passed3m41s with unused internal constructor warning. Experimental snapshot astc-mips-source-snapshot and DLL/PDB hashes astc-mips-deploy.json; prior pair before-astc-mips-symbols.
+- Started one monitored astc-mips retry after previous process exit and test/build success. Current receipt astc-mips-boot-receipt.json; host astc-mips-launch.log, guest .runs-native/astc-mips-serial.log. Live private3mip behavior and sustained usability pending; preserve images and do not claim boot success solely from synthetic tests.
+
+- Live astc-mips retry reached English country selection after upward click-drag. Agent observed actual country list, not just welcome graphics. QEMU54032 and launcher39072 receipt running at190s, no fatal/waited log yet, but most recent presentation gap6.8s means sustained responsiveness remains poor/unproven. Leave running for user testing; no region choice or agreement accepted. Stable live3mip handling still pending.
+
+## 2026-11-04: language-transition crash and RGB542 load preservation
+
+- User reports white screen then exit after language selection. astc-mips receipt confirms exit3221226505 at379s; fatal374.300s renderCommandEncoderWithDescriptor refuses RGB8_444_2P/raw542 pass. This is a different terminal path from ASTC creation. Exact attachment actions were not printed by old fatal; do not assert Load was proven.
+- Runtime inspection finds RGB542 pass explicitly rejects Load and non-Store actions, resolves/options. Added experimental bounded RGB542 Load support: a GPU conversion normalizes G/BR code planes directly into float render shadow before rendering, preserving originals; RGB542 DontCare store admitted, while resolves/options and other unsupported formats still refuse. Shader uses a separate kernel/cache key for float-code output; existing packed-code conversion unchanged. Shadow copy tracking covers source and compute writes. Added full refused-pass descriptor log in Reims for the next failure.
+- Apple MTLLoadAction documentation requires existing contents preserved by Load; private-format fidelity remains own experimental implementation, not newly verified Apple hardware parity. GPU example verifies random two-plane bytes survive no-draw Load/Store exactly, then blending uses loaded purple and keeps padding, at7x3,1x1,8x2; all passed. Existing RGB layout test1passed. Full suite not run. Logs rgb444-load-tests.log. Native optimized build currently running; no new boot yet. Source snapshot rgb-load-source-snapshot, prospective monitored launcher rgb-load-boot.py.
+
+- Optimized native build passed11m14s with unused-helper warnings. Deployed matching DLL/PDB pair and hashes rgb-load-deploy.json; previous pair preserved before-rgb-load-symbols. One controlled rgb-load retry started after confirming no QEMU was running; actualQEMU35772, launcher63628, monitor9476 are fragile current identifiers. Receipt rgb-load-boot-receipt.json running at60s, host rgb-load-launch.log and guest .runs-native/rgb-load-serial.log. Display window21694590 exists. Live language transition still unverified; no speculative second reboot.
+
+- Live rgb-load run at151s: GPU submissions active; no fatal/waited/refused descriptor entries yet. CUA observed welcome debug banner, information button and home indicator; another foreground app partly occludes the QEMU window, and activation attempts intermittently fail. Leave running for user to bring Reims vGPU forward and click-drag up. Language-transition fix remains unverified live.
+
+## 2026-11-04: ASTC texture-to-buffer crash and ordered compressed readback
+
+- User says it is not open. Live check confirms rgb-load QEMU exited3221226505 after569s; fatal564.292s copyFromTexture...toBuffer...options refuses ASTC copy/fill outside buffer-upload path. No running QEMU at diagnosis. Do not describe it as merely hidden. No new RGB-pass fatal observed before this distinct copy refusal.
+- Implemented bounded ASTC texture-to-buffer readback for both blit forms, using retained original compressed blocks per mip/view; never copies decodedRGBA16F bytes as ASTC. Added runtime host-produced row upload as ordered deferred step with replay support: reads compressed blocks after prior GPU uploads/CPU decode steps, stages rows, then GPUcopies to destination, leaving padding/gaps intact. Range/stride/mip/slice checks retained; only zero options supported. Other unsupported ASTC copy/fill paths remain refused.
+- Seven ASTC tests passed0.75s: new test writes green then reads compressed bytes, writes red then reads again within one command buffer, checks GPUprivate destination via later GPUcopy to shared, distinct results/order,2compressed rows with padded strides/prefix/gaps,4x4 and6x6 private mip1, and rejected bounds/strides/mips. Previous public-image/colour/sample/upload/private-mip tests passed too. Full suite not run. Native optimized build pending. Tests astc-readback-tests.log, build astc-readback-native-build.log, source astc-readback-source-snapshot. No new boot until build passes.
+
+- Native build passed5m41s; pair deployed with hash manifest astc-readback-deploy.json, previous pair before-astc-readback-symbols. One monitored astc-readback boot running at82s (QEMU58524, launcher48096, monitor69376). Host astc-readback-launch.log, guest .runs-native/astc-readback-serial.log. Current Reims window5114696 exists but another app occludes it; click and fresh-binding Raise retries both returned failed to activate captured window. Stopped UI input per recovery rules; user must select Reims vGPU taskbar entry. No fatal/panic/waited in current log yet. Original missing window was a confirmed process crash, not just occlusion. Live ASTC readback/long-term stability unverified.
+
+## 2026-11-04: input focus, occlusion and monitor socket corrections
+
+- User asks to selectUK, then confirms manual drag also fails. Old astc-readback process survived >2h. Space woke sleeping display and animated welcome, but UI drags did not reopen setup. Captured matching-symbol input-stall-1.dmp/stacks. Mainloop waited301987ms in Windowsg_poll and vCPUs were idle: not proof of deadlock.
+- Correction to initial diagnosis: QMPtimeout was a monitor-client leak. Bootmonitor called s.close() while makefile f remained open; NetTCPshowed established client owned by monitor. New input-top launcher closes f before s. Verified greeting/capabilities/status/mice query8.18ms, guest running with absoluteQEMU HIDTablet selected. Do not call controltimeouts proof of hungguest.
+- Built opt-in Windows poll cap and7puredeadline checks passed. Headless none-machine old/new both responded6.29/1.77ms, so did not reproduce guest issue. Cap disabled(VPHONE_WIN32_POLL_MAX_MS=0) in current retry; do not claim this fixesinput. Previous executable qemu-before-input-wake.exe retained. Diagnostic input-wake trial stopped before focusedviewer rebuild.
+- Concrete viewer behavior: focus-causing click is intentionally discarded. Added opt-inWindows absolute direct-touch focus clickthrough (REIMS_VGPU_FORWARD_FOCUS_CLICK=1); relative/default behavior unchanged. Added optionalWindows SDLkeep-on-top/raise(REIMS_VGPU_WINDOW_ON_TOP=1), viewer outgoingpointer trace and USBconsumedtouchreport tracing.19pureinput tests passed, including new focus press/motion/release and focuslosscleanup plus existingrelative/default/keyrelease cases. Native build passed4m10s. Snapshot focus-touch-source-snapshot, hashes input-top-deploy.json, prior pair before-input-top-symbols.
+- Current input-top run: fresh Reims window10690932 fully visible on top, welcome graphics observed. New launchermonitor30020, QEMU mustrefresh from live processlist. Logs input-top-launch.log and guest .runs-native/input-top-serial.log; QMP19688 now independentlyaccessible. CUAactivation twice fails with failed to activate captured window (titlebarclick then refreshedbindingMaximize); stopped UI attempts after retry per helper rules. No actual mousegesture generated/USBtraceconsumption verified. UK remains unselected. Firstcontact policy is unit-tested, not end-to-end proof. No host/WSLrestart or Astra; images/backups preserved.
+
+## 2026-11-04: crash after dark appearance, variable blur shader
+
+- User reports crash after selectingdarkappearance. input-top receipt exited3221226505 after4313s; terminal4306.855s drawIndexedPrimitives refuses Unsupported Format/NotImplemented at variable_blur_frag_lph block0 inst0, no format symbol. No runningQEMU. Exact format/operation not established; do not remove guessed format guards or call it anASTC/previousRGBpass recurrence. Source has multiple possible body-levelFormatrefusals.
+- Prior-run trace verifies5184outgoingviewer reports(1695pressed),4893guest-consumedUSBtouch reports(1582pressed). User progressed toappearance. This is live inputtransport evidence; CUAactivationlimitation remains separate, no causalclaimwhichinputsetting helped.
+- Exact-name public searches returnednoresults. Added diagnostic-only METAL2VULKAN_TRACE_FORMAT_REFUSAL: track_caller records constructor sourcefile/line, lower located() records function/block/instruction and LoweringInputs on Formaterror. Existing errors/guards unchanged; no claimed functionalblurfix or tests. Nativeoptimizedbuild pending (blur-diagnostic-native-build.log); then planned one preserved-state diagnosticretry blur-diagnostic-boot.py. Source snapshot blur-diagnostic-source-snapshot, investigation blur-crash-investigation-20261104.md. Images/backups unchanged; noAstra/hostrestart/globalWSLrestart.
+
+Diagnostic build completed successfully in 11m59s (unused-constructor warning). Backed up deployed matching DLL/PDB in before-blur-diagnostic-symbols, deployed fresh pair with SHA256 manifest blur-diagnostic-deploy.json, and started blur-diagnostic-boot.py. CUA verified Apple boot logo in new Reims window9177914. This is a diagnostic retry, not a functional blur fix; exact refusal source and LoweringInputs remain pending reproduction. No host reboot or image reset.
+
+Diagnostic retry reached the welcome screen by about220s. At298s the renderer reported57.1 guest/window submissions per second in that interval, GPU presentation2.37ms average; this is a short welcome-screen sample, not sustained setup FPS. Two CUA upward drags were delivered but did not open setup by340s. Process remained running with no fatal or located shader refusal. User-assisted reproduction of the setup transition remains necessary; no blur correction claimed.
+
+## 2026-11-04: Camera Control continuation crash and checkpoint request
+User reported crash after Camera Control Continue. Diagnostic run exited3221226505 after1226s. Fatal1220.978s: dispatchThreads bind state refuses VK_FORMAT_E5B9G9R9_UFLOAT_PACK32 storage image/write-without-format support. Different failure from prior variable blur lowering. No functional fix yet. User requests a restorable checkpoint later on their instruction; do not capture now. Native launcher explicitly lacks GPU snapshot/migration support. Proposed reliable fallback is a stopped full mutable-bundle backup (disk, NVRAM, SEP storage/identity/config plus version manifest), with cold boot restore; live GPU resume is unproven. QEMU official snapshot docs distinguish complete device/RAM/disk snapshots from disk-only copies: https://qemu-project.gitlab.io/qemu/system/images.html .
+
+## 2026-11-04: bounded RGB9E5 compute-write fallback
+Implemented write-only RGB9E5Float alias through R32_UINT when native storage unsupported, with shader clamp/shared exponent/carry/round/pack. Only mutable images and write-only accesses take fallback; reads/atomics/nonfloat at this class still refuse. Hardware-specific Metal rounding remains unqualified, recorded as DeviceTexelConversion precision note; fragment nearest-even guard retained. Semantics version1695 invalidates old translated artifacts. GPU regression example rgb9e5_storage exercises shared/private images, HDR/boundary/NaN/Inf values, masked preservation, sampled decode and padded readback using owned AIR fixture. Builds/tests pending, no new boot yet. Planned launcher rgb9e5-boot.py disables verbose constructor diagnostic flag; input/focus settings retained. Snapshot not taken per user timing request.
+
+GPU regression passed on RTX4070Ti: 381pixels each in shared and private texture, comparing standard reference packed words and sampled float values, masked preservation and padded bytes. Precision note was announced, proving variant path. Dev build2m01s; actual GPU example passed, no full suite. Source snapshot rgb9e5-source-snapshot; test log rgb9e5-gpu-test.log. Optimized native build still running; setup transition not yet retested.
+
+Final optimized build passed14m30s including lock wait (initial build11m49s). Matching DLL/PDB deployed with rgb9e5-deploy.json hash manifest; old matching pair before-rgb9e5-symbols. Launcher syntax compile passed; monitored rgb9e5-boot.py started once after confirming no QEMU. Existing device state preserved; no snapshot or reset. Live setup verification pending.
+
+Live retry: actualQEMU63192, monitor40188, launcher50336 (refresh before stopping); receipt rgb9e5-boot-receipt.json running at175s, no fatal/panicked. Viewer58003166 initially black, Space via CUA woke visible welcome debug banner/homebar/info button at~180s. Submission sample68/s and GPU2.19ms average at174s is brief welcome rendering, not usable setup/FPS proof. Camera Control transition still needs user retry. Leave running; no further automatic reboot. Public implementation basis https://docs.vulkan.org/spec/latest/chapters/formats.html and Khronos EXT_texture_shared_exponent. Test repeat0.696s dev executable, not optimized benchmark.
+
+## 2026-11-04: requested checkpoint, stopped disk recovery backup
+User requested GPU-supported snapshot at current screen. Live check found no QEMU: rgb9e5 run already exited3221226505 at~1723s, no explicit fatal/panicked text captured. Live GPU/RAM state unavailable; launcher also lacks GPU migration. Preserved stopped device files instead at E:/ios-sweet-checkpoints/20261104-1918-device-state. All13 root bundle files copied (64GiB disk plus NVRAM/SEP/identity/config) and SHA256 source/copy compared, manifest status verified. Matching renderer DLL/PDB and native QEMU executable copied and hashes verified in binary-hashes.json; evidence/launchers included, README explains restore into new working bundle. Crash-consistent only; setup progress only as persisted before crash; no exact-screen/GPU resume or tested restoration claimed. Original files untouched, instance left stopped. Backup script backup-device-20261104.ps1 and device-checkpoint-20261104.log under audit. No Apple artifacts staged.
+
+## 2026-11-04: verified checkpoint restored to GPU working copy
+User explicitly requested reload. All13 checkpoint files restored into new E:/ios-sweet-working/restored-20261104-1930, each copied SHA256 matched manifest; installed DLL/PDB/native exe matched checkpoint binary hashes. Originals and backup untouched. First launch rejected missing .runs-native before VM; created directory and one corrected launch succeeded. Current monitor66708, launcher34064, actualQEMU65560, window58330846 (refresh fragile IDs). Verified process uses E:/ios-sweet-working/restored-20261104-1930/Disk.img; CUA welcome debug banner/homebar/info visible at~135s. No current fatal/exit-guard abort yet. Logs checkpoint-restore-launch.log and guest .runs-native/checkpoint-restore-serial.log; receipt checkpoint-restore-boot-receipt.json running. Restore receipt checkpoint-restore-20261104.json verified. Not an exact-screen/RAM/GPU resume; persisted setup progress not established. Leave running, no automatic further retries.
+Prior exit now identified: Windows Application1000 19:17:37, code0xc0000409, DLL RVA0x78a3a0; saved matching PDB resolves to metal2vulkan_runtime::exit_guard::check at exit_guard.rs838 calling abort. Prior log1716.732s explicitly says metal2vulkan-handlers thread reached device outside exit-guard section. This is not another unsupported format diagnosis. Symbol output last-exit-symbol-20261104.txt. Guard issue remains unfixed; do not disable guard to claim stableGPU.
+
+## 2026-11-04: paused Quick Start phase checkpoint
+User requested current setup-phase checkpoint to avoid repeated steps. CUA observed Quickly Set Up iPhone on actualQEMU65560/window58330846. Saved E:/ios-sweet-checkpoints/20261104-quickstart-phase, manifest status verified,13 files SHA256 source-stream/copy matches. Verified QMP block path matches active E working copy, stop/query-status paused; local system/cpus.c do_vm_stop drains/flushes host blockIO. Copied frozen device files with source stat consistency, then cont/query-status running before destination verification; same instance remained alive and CUA samephase visible afterward. Matching renderer pair/deployed hash manifest included. No guest filesystem freeze, RAM or GPU save; only persisted setup state can be recovered, exact-step cold restore untested. Do not promise skippedsteps. Earlier backups untouched. Script checkpoint-quickstart-20261104.py and log sameprefix.log in audit; source remains E:/ios-sweet-working/restored-20261104-1930. Left running, no reboot.
+
+## 2026-11-04: Camera Control completion abort localized to scratch lease
+User reports Camera Control Continue crash again; restored instance exited3221226505 after4713s, log4708.067s metal2vulkan-handlers outside exit-guard. No running QEMU. Windows dump AppData/Local/CrashDumps/qemu-system-aarch64.exe.65560.dmp has matching symbols: exit_guard::check -> DeviceShared::vk -> mipmap_scratch::Lease::drop line147 -> completed retained-resource release mod.rs2721. Exact stack camera-control-guard-crash-stack.txt. This narrows previous broad callback diagnosis to surplus scratch-block destructor calling checked vk accessor before release helper enters guard. Do not wrap entire user callbacks in section.
+Added minimal guard inside surplus-release branch in mipmap_scratch::Lease::drop and equivalent gpu_pools::PoolLease::drop. Guard retained, shutdown leaves raw objects to process if enter refused. GPU unit regressions create surplus leases on runtime threads that assert no outer guard; check both mip scratch growth/replacement orders and index/mesh pool returns retain proper spare. Tests handler-guard-tests.log pending; optimizedbuild handler-guard-native-build.log pending. Source snapshot handler-guard-source-snapshot. Planned one handler-guard retry from current E working bundle, not reset/rollback. All checkpoints untouched.
+
+Focused GPU tests passed3/3 in1.51s: new guarded_scratch_return_on_runtime_thread (both sizeorders retain largest), guarded_gpu_pool_return_on_runtime_thread (index/mesh spare release), existing scheduler_buffer_writes_are_guarded_and_primed. Rustflags m2v_gpu, runtime threads assert no outer guard before/after realGPUleases drop. Native optimized build still running; no fullsuite or live Camera Control pass claimed.
+
+Optimized native build passed6m25s, unused-helper warnings only. Matching renderer DLL/PDB deployed with handler-guard-deploy.json hashes; previouspair before-handler-guard-symbols. Launcher syntax passed; one monitored handler-guard retry started from existing E working bundle preserving latest writes. Checkpoints unchanged. Live boot/camera transition pending.
+
+Live handler-guard run: monitor38736 launcher25760 actualQEMU34608/window55319036 (refresh identifiers before actions); receipt running at~135s, CUA welcome swipe-up/info/homebar visible. Current log has no fatal/panicked/outside-exit-guard line at check. Camera Control continuation still unverified live; no stability guarantee. Leave running, no further automatic retry. All earlier backup device files and renderer pair retained; current worker bundle unchanged apart from normal guest writes.
+
+## 2026-11-04: GPU handoff prepared for Dan's shared Notion workspace
+User explicitly requested publishing all relevant GPU progress for Dan. Prepared IOS-GPU-HANDOFF-2026-11-04.md: architecture, distinct iOS16SWEET vs iOS26nativeGPU tracks, verified fixes/tests/performance limits, Camera Control dump diagnosis/guard repair, checkpoints/restore limits, local artifact paths, currentbuild/hash and nextsteps. Checked live handler-guard process34608 still exists, receipt running, no fatal/guardabort, but latestframegap~38min; report does not call this responsive. No instance mutations. Notion search found privateHQ link to Shared Development HQ - NovaForge & iOS Sweet ID40ec8487-8c96-8168-8682-e45c64fe4543; fetch by URL and UUID both404. Shared sidebar onlyexposesprivateHQ; no appropriate writable shared destination verified. Asked user for current sharedpage link/access; no publication or privateHQ modifications made. Copy-ready draft saved; pending destination/access before Notion write.
+
+## 2026-11-04: shared Notion publication, GPU source export and Get Started checkpoint
+Notion access nowworks. Created/readback full handoff https://app.notion.com/p/40ec84878c9681e3b14bf386550bde59 under shared iOSworkspace40ec8487-8c96-81ec-bd52-f29f26642fcf; addedhubnavigation. No privateHQ modification. Notion warns freeblocks exhausted, creationgraceuntil2026-11-07. User requested Git/fork/PR. Verified Danrepo permissions pushfalse; remoteonlymain/qemu-net-ioreg-probe/windows-qemu-virtio. Created forkDeclanFrampton/ios-sweet and forkbasefeature/gpu-development at2043ca8; contributionbranchfeature/windows-native-ios-gpu. UpstreamGPUbaseabsent, so draftreviewPRtargets forkGPUbranch pendingupstreamcoordination.
+Exported publicpinned Reims/metal2vulkan/QEMU patches from actuallocaltrees, includingReims local16KiB/IOSurface commits, plusauthored ASTC source and synthetic textualfixtures. No binaries/disks/Applecaptures. Freshpublicsourcepreparationpassed all3patches and26/35/15filehashes; ownedbitcodefixtureassemblypassed. SevenCpollassertions, fourplan/manifesttests, viewerpolltest, Pythoncompile/PSparse/Bashsyntax passed. Nativefullfreshbuildnotrerun. Licenses/notices included. Existing liveinstanceuntouchedexceptrequestedcheckpoint.
+Userrequested snapshotbeforeGetStarted midtask. Paused confirmedcurrentGetStarted screen55319036, QMPpath matchedcurrentEworkingbundle; copied13devicefiles toE:/ios-sweet-checkpoints/20261104-get-started-phase, resumedsameinstance, checksumverificationpassed. No RAM/GPUstate, exact-steprestoreuntested. Priorcheckpointsunchanged. Scriptcheckpoint-get-started-20261104.py/log inignored audit. CurrentGetStartedvisibilityisnewprogressafterhandlerguardfix, nothome/appacceptance.
+
+## 2026-11-04: completed setup and resident-page validation experiment
+
+User photos show SpringBoard and Settings. Verified13paused device-file copies at E:/ios-sweet-checkpoints/20261104-springboard-complete; same VM resumed. No RAM/GPU migration or exact-screen recovery claim. Prior Get Started checkpoint remains untouched.
+
+Published fork draft PR https://github.com/DeclanFrampton/ios-sweet/pull/1 from feature/windows-native-ios-gpu into feature/gpu-development. This is a fork review branch because upstream has no GPU branch and no push permission. Head before this follow-up eeaa1f4; no CI checks reported. Shared Notion handoff https://app.notion.com/p/40ec84878c9681e3b14bf386550bde59 updated with SpringBoard and performance investigation.
+
+User reports apparently frozen clock. Guest still produces intermittent frames and serial work, so distinguish stalls/static lock screen from dead process. Logs show VirtualQuery-based checks taking70-80ms. Read-only20confirmed-resident-address comparison: VirtualQueryEx median56.0531ms max128.5143 versus QueryWorkingSetEx median0.0050ms max0.0683; all20pages still valid. First probe used nonresident low RAM pages and is not resident-fast-path proof. Random1024-page sample was808resident, not universal residency. No end-to-end FPS speedup claim.
+
+Implemented bounded4096-page K32QueryWorkingSetEx fast path with logical permissions, all requested pages checked, no cross-call cache, and existing VirtualQuery fallback for invalid/nonresident/guard/unknown results. Four real/modeled validation tests passed, including interior noaccess/guard without consuming guard, protection restoration and unmap. Seven ASTC regressions passed1.38s. Native optimized build resident-pages-build.log/.err currently pending; old VM34608 exited0 after QMPquit. Do not relaunch before build/deploy succeeds.
+
+Added user-operated PhoneControls.cs / phone-controls.ps1 and iPhone controls desktop shortcut. Home sends the viewer middle-click shortcut (guest Cmd+H); separate slower swipe unlock control accounts for letterboxing. Geometry/native INPUT layout self-test and PowerShell parse passed; actual Home-to-SpringBoard acceptance remains pending. Normal exported launcher disables verbose input/FIFO diagnostics with --diagnostics opt-in; four plan tests passed. New27-file public-base Reims reconstruction/hash check passed. Keep Apple artifacts/private checkpoints out of Git. Quiet retry script resident-pages-boot.py is prepared against the same completed-setup working bundle, with warning logs and per-second frame counts only.
+
+Native optimized build passed in2m46s. Six Windows VM tests and seven ASTC GPU regressions passed. Deployment initially stopped because the Windows PowerShell child could not load Get-FileHash; before any boot, verified original DLL backup/PDB hashes, completed matching DLL/PDB backup, then deployed/verified via Python SHA256. Deployed DLL D1E3555B4EA6041C4294216E50F052D4AC83F5E4AE2318A7F5144AFAAB9FD97A. One quiet resident-pages boot launched; actual QEMU48692, monitor70248, wrapper52672 (refresh IDs). Loaded module path verified. Same working disk, no reset; live responsiveness/Home acceptance pending.
+
+Live resident-pages retry reached lock screen at~130s. Clickable Swipe up/unlock returned to SpringBoard; Settings cold launch rendered after roughly45s. Clickable Home/SpringBoard then returned from Settings to Home, visually verified through CUA. Instance remains running, no fatal seen. Short samples ranged0-61submissions/s and do not establish sustained FPS or unique frames. Cold app latency is still poor; reduce guest motion/transparency next. Commits a3c1906 and ffee43e pushed to fork draftPR1; no CI checks reported.
+
+Follow-up: consumed touch traces and hid_pointer_sync source show the first absolute button-down coordinate can be overwritten by subsequent same-button motion before the guest polls. Preserved absolute button-edge reports until consumed, while retaining later motion compression and unchanged relative-mouse behavior. Regression replays down/move/move/up at16ring positions plus6predicate cases; compiled/ran with -Wall -Wextra -Werror. Actual HID object and native QEMU link passed. Old executable preserved as qemu-before-input-anchor.exe. Clean prior VM exit0; one input-anchor boot now running (actual QEMU31176, monitor12220, wrapper34772; refresh IDs), same working disk and resident-page renderer. Exported17-file QEMU patch reconstructs pinned public base/hashes. Live fast-drag acceptance pending; no animation preference actually changed yet.
+
+Latest live check: input-anchor boot31176 remains running and CUA shows General in Settings at~260s. Quick CUA drag did not reliably establish unlock; queue regression proves edge coordinates are retained, not complete guest gesture timing. Slower unlock/Home controls were verified on resident-pages boot; current viewer is visibly advancing through Settings. No sustained smoothness claim: renderer submission samples vary0-68/s and app transitions still pause tens of seconds. Reduce Motion/Reduce Transparency were not changed; do not claim guest preferences applied. Leave this instance running, no further reboot loop. Next: profile remaining guest/background/command stalls with a fixed workload and record all-call timings plus gesture-to-frame latency. Completed-setup backup remains verified and unchanged. Input fix14f29e4 is pushed to fork draftPR1.
+
+2026-11-05 idle freeze: preserved same live31176 before restart. MiniDump capture-freeze-before-20261105.dmp/stacks shows mainloop g_poll and4APs waiting at capture, UI thread waiting for messages; QMPstatus responded0.4ms. Live trace capture-input-live-20261105.log proves correct ABS press/move/release reachesQEMU, USBtouch slot3/ep3 reports complete20bytes, keyboardslot1 reports complete8bytes. CtrlAltHome CUA did not release; CtrlAltSuper visibly clearedcapturetitle, but unlock still failed. SameVM QMPstop/cont confirmedpaused/running and did not restoreunlock. Not proven host-input swallowing orGPUspin. Currenttrialprepares explicit --idle-input-workaround: capWindowswait16ms and optoutWindows systemkeyboardgrab forabsolute input; relativegrabunchanged. Tests/build pending, no datareset/hostreboot.
+
+Idle-input trial: 110window/input tests passed,2ignored, including no-grab policy;7poll-limit assertions and4launcher tests passed. Real CLI --idle-input-workaround plan check passed without booting. Reconstructed27Reims files/hashes. Native build passed1m09s; DLL/PDBpair verifieddeployed(43E62AC809946E76816FE96F3A12625B70184632976C9C67BF8DE959C2298178 DLL), oldpairbefore-idle-input-symbols. OldVM31176quitcleanly; one freshboot ofsameEworkingbundle, actualQEMU64596/monitor48548/wrapper61384 (refresh IDs). Runtime log confirms16mspollcap. CUAverifiedSpringBoardaftercontrollerunlock, withoutreleasechord, around177s. Nowtestingidle/lock/unlock; notprooflongtermfix. No AutoLock/security/guestsettings changed.
+
+2026-11-05 Safari: user confirms Auto-Lock set toNever. New screenshot banner says web page reloaded because a problem occurred; classify as page-process termination/reload, not an ordinary DNS error. Host direct HTTP/HTTPS example.com both200; guest NAT metadata shows established TCP443 and UDP443 traffic. Running4GiB QEMU remainedalive; no matching hostfatal/panic/WebKit/jetSam cause in serial logs. Google.com is user reproduction target. Current target crash reports unavailable: prior iOS-GPU-Research WSL distro root lookup fails74 afterhostrestart; workingUbuntu lacksdiagnostictools/USBIP. No globalWSL reset/kernelchange orphysicaldeviceaccess attempted. Preserved4GiB safari-network logs; cleanQMPquit then one same-disk8GiB trial safari-8g-boot.py, same4CPU/2GiB TCGcache/GPU/resolution/no-grab16msprofile. This testsmemorypressurehypothesis only; cause andSafariacceptance unverified. No cache/site-data deletion, certificate bypass orSafari feature changes. LocalNATprobe onlyhost-self-tested; guestUItest wasstoppedbyEscape inpriorinteraction, probe ended/stopped.

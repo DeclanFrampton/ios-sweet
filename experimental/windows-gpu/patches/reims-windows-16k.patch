@@ -1,0 +1,1889 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index f2233dffa13858386da5bb7b58c1dce102bdc2a3..e4575886049ec7d4d83b8c15ad182c87b82c8928 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -20,6 +20,52 @@ dependencies = [
+  "libloading",
+ ]
+ 
++[[package]]
++name = "astc-decode"
++version = "0.3.1"
++
++[[package]]
++name = "astcenc-rs"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0aeca9a36277a4bb6206b4f9e42f3117b6916428b8787c48ef45646c7722a501"
++dependencies = [
++ "astcenc-sys",
++ "bitflags",
++ "half",
++ "num_cpus",
++]
++
++[[package]]
++name = "astcenc-sys"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "20632ae70d176f8de834fde138abd0b461d2a65892a907e35fae7af62fa5b850"
++dependencies = [
++ "bindgen",
++ "cc",
++]
++
++[[package]]
++name = "bindgen"
++version = "0.72.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "993776b509cfb49c750f11b8f07a46fa23e0a1386ffc01fb1e7d343efc387895"
++dependencies = [
++ "bitflags",
++ "cexpr",
++ "clang-sys",
++ "itertools",
++ "log",
++ "prettyplease",
++ "proc-macro2",
++ "quote",
++ "regex",
++ "rustc-hash",
++ "shlex 1.3.0",
++ "syn 2.0.119",
++]
++
+ [[package]]
+ name = "bitflags"
+ version = "2.13.2"
+@@ -51,7 +97,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f360145194ee8e21db5ee7f3fcd4fe52210864c75c985dae33218202c8bbe040"
+ dependencies = [
+  "find-msvc-tools",
+- "shlex",
++ "shlex 2.0.1",
++]
++
++[[package]]
++name = "cexpr"
++version = "0.6.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766"
++dependencies = [
++ "nom",
+ ]
+ 
+ [[package]]
+@@ -60,6 +115,17 @@ version = "1.0.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
+ 
++[[package]]
++name = "clang-sys"
++version = "1.9.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "157a8ba7b480713b56f4c09fd13fc3e0a22a5dfab8097ba61cbc5feef950788a"
++dependencies = [
++ "glob",
++ "libc",
++ "libloading",
++]
++
+ [[package]]
+ name = "cmake"
+ version = "0.1.58"
+@@ -78,6 +144,12 @@ dependencies = [
+  "libc",
+ ]
+ 
++[[package]]
++name = "crunchy"
++version = "0.2.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
++
+ [[package]]
+ name = "crypto-common"
+ version = "0.1.7"
+@@ -110,6 +182,12 @@ dependencies = [
+  "objc2",
+ ]
+ 
++[[package]]
++name = "either"
++version = "1.19.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
++
+ [[package]]
+ name = "find-msvc-tools"
+ version = "0.1.14"
+@@ -141,6 +219,38 @@ dependencies = [
+  "version_check",
+ ]
+ 
++[[package]]
++name = "glob"
++version = "0.3.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
++
++[[package]]
++name = "half"
++version = "2.7.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b"
++dependencies = [
++ "cfg-if",
++ "crunchy",
++ "zerocopy",
++]
++
++[[package]]
++name = "hermit-abi"
++version = "0.5.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
++
++[[package]]
++name = "itertools"
++version = "0.13.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
++dependencies = [
++ "either",
++]
++
+ [[package]]
+ name = "itoa"
+ version = "1.0.18"
+@@ -221,7 +331,6 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+ [[package]]
+ name = "metal2vulkan"
+ version = "0.2.0"
+-source = "git+https://github.com/tqmane/metal2vulkan?rev=7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb#7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb"
+ dependencies = [
+  "ash",
+  "metal2vulkan-air",
+@@ -232,7 +341,6 @@ dependencies = [
+ [[package]]
+ name = "metal2vulkan-air"
+ version = "0.2.0"
+-source = "git+https://github.com/tqmane/metal2vulkan?rev=7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb#7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb"
+ dependencies = [
+  "sha2",
+ ]
+@@ -240,7 +348,6 @@ dependencies = [
+ [[package]]
+ name = "metal2vulkan-runtime"
+ version = "0.2.0"
+-source = "git+https://github.com/tqmane/metal2vulkan?rev=7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb#7f09d6be92aa98fb8f5cf4d47c8441d2351bc6fb"
+ dependencies = [
+  "ash",
+  "libc",
+@@ -248,6 +355,22 @@ dependencies = [
+  "sha2",
+ ]
+ 
++[[package]]
++name = "minimal-lexical"
++version = "0.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
++
++[[package]]
++name = "nom"
++version = "7.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
++dependencies = [
++ "memchr",
++ "minimal-lexical",
++]
++
+ [[package]]
+ name = "nu-ansi-term"
+ version = "0.50.3"
+@@ -257,6 +380,16 @@ dependencies = [
+  "windows-sys",
+ ]
+ 
++[[package]]
++name = "num_cpus"
++version = "1.17.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
++dependencies = [
++ "hermit-abi",
++ "libc",
++]
++
+ [[package]]
+ name = "objc2"
+ version = "0.6.4"
+@@ -411,6 +544,16 @@ version = "0.2.17"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+ 
++[[package]]
++name = "prettyplease"
++version = "0.2.37"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
++dependencies = [
++ "proc-macro2",
++ "syn 2.0.119",
++]
++
+ [[package]]
+ name = "proc-macro2"
+ version = "1.0.107"
+@@ -438,6 +581,18 @@ dependencies = [
+  "bitflags",
+ ]
+ 
++[[package]]
++name = "regex"
++version = "1.13.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d"
++dependencies = [
++ "aho-corasick",
++ "memchr",
++ "regex-automata",
++ "regex-syntax",
++]
++
+ [[package]]
+ name = "regex-automata"
+ version = "0.4.18"
+@@ -516,6 +671,9 @@ name = "reims-vgpu-vulkan"
+ version = "0.1.0"
+ dependencies = [
+  "ash",
++ "astc-decode",
++ "astcenc-rs",
++ "half",
+  "libc",
+  "log",
+  "metal2vulkan",
+@@ -552,6 +710,12 @@ version = "0.1.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "5a2d2f3481209a6b42eec2fbb49063fb4e8d35b57023401495d4fe0f85c817f0"
+ 
++[[package]]
++name = "rustc-hash"
++version = "2.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
++
+ [[package]]
+ name = "rustversion"
+ version = "1.0.23"
+@@ -651,6 +815,12 @@ dependencies = [
+  "lazy_static",
+ ]
+ 
++[[package]]
++name = "shlex"
++version = "1.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
++
+ [[package]]
+ name = "shlex"
+ version = "2.0.1"
+diff --git a/Cargo.toml b/Cargo.toml
+index 6d9bdcf8b3d07acd75ef8f8d92f1d0d8eeab2617..fa7cfb43de3f5e3f9d4bcb3d5359657ed80bef76 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -106,3 +106,21 @@ debug-assertions = true
+ # suite's `checked` pass leaves them off, and release has none at all (D36).
+ [profile.checked.package.objc2]
+ debug-assertions = false
++
++[patch."https://github.com/tqmane/metal2vulkan"]
++metal2vulkan-air = { path = "../metal2vulkan-ios-container/crates/metal2vulkan-air" }
++metal2vulkan = { path = "../metal2vulkan-ios-container/crates/metal2vulkan" }
++metal2vulkan-runtime = { path = "../metal2vulkan-ios-container/crates/metal2vulkan-runtime" }
++
++# Optimized experimental Windows renderer with matching line tables/PDB.
++[profile.ios-perf]
++inherits = "dev"
++opt-level = 2
++debug = "line-tables-only"
++debug-assertions = true
++overflow-checks = true
++incremental = false
++lto = false
++
++[profile.ios-perf.package.astcenc-sys]
++opt-level = 3
+diff --git a/crates/reims-vgpu-c/Cargo.toml b/crates/reims-vgpu-c/Cargo.toml
+index 507bb94a302523b6b78950b62191f2366f177d6f..3905fefee857ed9e9877000c51fd1ec1865b3d63 100644
+--- a/crates/reims-vgpu-c/Cargo.toml
++++ b/crates/reims-vgpu-c/Cargo.toml
+@@ -14,6 +14,8 @@ license.workspace = true
+ crate-type = ["cdylib", "staticlib", "rlib"]
+ 
+ [features]
++# All devices in this library use 16 KiB guest pages; not a per-device setting.
++guest-page-16k = ["reims-vgpu-core/guest-page-16k"]
+ default = ["macos-sdl"]
+ # SDL3's window on macOS (`reims-vgpu`'s `macos-sdl`), on by default: `--no-default-features`
+ # builds the macOS library without SDL, its windows AppKit's alone.
+diff --git a/crates/reims-vgpu-c/src/window.rs b/crates/reims-vgpu-c/src/window.rs
+index 7b17502c1f0415c8d459164bfbf13194e69fc27b..dd26365ee7a7e4c6bd8cb549bbb345df85fb1fc7 100644
+--- a/crates/reims-vgpu-c/src/window.rs
++++ b/crates/reims-vgpu-c/src/window.rs
+@@ -328,7 +328,9 @@ pub(crate) fn window_callbacks(t: &Arc<Table>, c: &RvgWindowCallbacks) -> Window
+         }),
+         pointer: c.pointer.map(|f| {
+             let t = t.clone();
++            let trace = std::env::var_os("REIMS_VGPU_INPUT_TRACE").as_deref() == Some(std::ffi::OsStr::new("1"));
+             let c: PointerFn = Arc::new(move |x, y, width, height, buttons| {
++                if trace { eprintln!("reims-input pointer x={x} y={y} size={width}x{height} buttons={buttons}"); }
+                 // SAFETY: the host's function over its ctx.
+                 ffi::host_call("pointer", || unsafe {
+                     f(t.ctx(), x, y, width, height, buttons)
+diff --git a/crates/reims-vgpu-core/Cargo.toml b/crates/reims-vgpu-core/Cargo.toml
+index d726c943926838bee9ca61c1829a0e3cc8ba9572..0b7e7c7f239c45661fcdfe3d00dacdc4b00669f8 100644
+--- a/crates/reims-vgpu-core/Cargo.toml
++++ b/crates/reims-vgpu-core/Cargo.toml
+@@ -8,6 +8,8 @@ publish.workspace = true
+ license.workspace = true
+ 
+ [features]
++# Experimental fixed guest ABI for an ARM64 guest on an x64 Windows host.
++guest-page-16k = []
+ # core::testkit and testkit::capture outside this crate's own unit tests (architecture 13.2).
+ testkit = []
+ 
+diff --git a/crates/reims-vgpu-core/src/display/page.rs b/crates/reims-vgpu-core/src/display/page.rs
+index 2ac5cb845073f38845b0d6063d18e2d19c7c0208..94dc659ab3b3ac4f98c6e58416a20fa5c9d33df3 100644
+--- a/crates/reims-vgpu-core/src/display/page.rs
++++ b/crates/reims-vgpu-core/src/display/page.rs
+@@ -223,9 +223,9 @@ mod tests {
+         assert_eq!(GUEST_ICC_PROFILE_LENGTH, 0xfd0);
+         assert_eq!(MODE_ENTRY_SIZE, 16);
+         assert_eq!(PAGE_LENGTH, crate::guest::records::APV_PAGE_SIZE);
+-        #[cfg(not(target_arch = "x86_64"))]
++        #[cfg(any(not(target_arch = "x86_64"), feature = "guest-page-16k"))]
+         assert_eq!(PAGE_LENGTH, 0x4000);
+-        #[cfg(target_arch = "x86_64")]
++        #[cfg(all(target_arch = "x86_64", not(feature = "guest-page-16k")))]
+         assert_eq!(PAGE_LENGTH, 0x1000);
+     }
+ 
+@@ -265,10 +265,16 @@ mod tests {
+     }
+ 
+     /// A 16 KiB page holds every matrix: every access is inside
+-    #[cfg(not(target_arch = "x86_64"))]
++    #[cfg(any(not(target_arch = "x86_64"), feature = "guest-page-16k"))]
+     #[test]
+     fn every_color_matrix_is_in_a_16k_page() {
+-        assert!(color_matrix(255, 2, 3) + 4 <= PAGE_LENGTH);
++        let last = color_matrix(255, 2, 3);
++        assert_eq!(last + 4, 0x3a10);
++        assert!(color_matrix_in_page(255, 2, 3, 4));
++        // The largest matrix index is valid; only the actual page boundary rejects a span.
++        assert!(color_matrix_in_page(255, 2, 3, PAGE_LENGTH - last));
++        assert!(!color_matrix_in_page(255, 2, 3, PAGE_LENGTH - last + 1));
++        assert!(!color_matrix_in_page(255, 2, 3, u64::MAX));
+         for w in 0..=255u8 {
+             assert!(color_matrix_in_page(w, 0, 0, COLOR_MATRIX_SIZE), "{w}");
+             assert!(color_matrix_in_page(w, 2, 3, 4), "{w}");
+@@ -277,7 +283,7 @@ mod tests {
+ 
+     /// A 4 KiB page holds matrices 0-30 whole and the first 32 bytes of matrix 31 (its rows 0
+     /// and 1); every access past those is outside
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", not(feature = "guest-page-16k")))]
+     #[test]
+     fn a_4k_page_ends_in_matrix_31() {
+         assert_eq!(color_matrix(30, 2, 3) + 4, 0xfe0);
+diff --git a/crates/reims-vgpu-core/src/guest/records.rs b/crates/reims-vgpu-core/src/guest/records.rs
+index 9b6d04fa8930ff1c1a0488d4d57368a9b2a15fe6..738d4fe9a65f942008ae2da3016cf33dcaf50afe 100644
+--- a/crates/reims-vgpu-core/src/guest/records.rs
++++ b/crates/reims-vgpu-core/src/guest/records.rs
+@@ -22,7 +22,17 @@ use crate::num::Truncate;
+ /// serves arm64 guests, an x86-64 build x86-64 ones (core's tests also run as x86-64 under
+ /// Rosetta on a Mac). Every page number the guest hands the device counts these pages. Name is
+ /// ours: the shift of `APV_PAGE_SIZE`.
+-pub const APV_PAGE_SHIFT: u32 = if cfg!(target_arch = "x86_64") { 12 } else { 14 };
++// This isolated capability follows the guest/host separation demonstrated by
++// YahiaAngelo/reims-vgpu commit 84089ca48a08b258c2c784ccf01976be020a0c08.
++// Unlike that per-device implementation, this feature fixes the entire library
++// to ARM64 guest pages. Host VM page sizes and remapping remain unchanged.
++pub const APV_PAGE_SHIFT: u32 = if cfg!(feature = "guest-page-16k") {
++    14
++} else if cfg!(target_arch = "x86_64") {
++    12
++} else {
++    14
++};
+ 
+ /// `APV_PAGE_SIZE`: the guest page size, 16 KiB (4 KiB on x86-64).
+ pub const APV_PAGE_SIZE: u64 = 1_u64.wrapping_shl(APV_PAGE_SHIFT);
+@@ -523,7 +533,7 @@ mod tests {
+ 
+     /// On arm64 every guest-page constant derived from `APV_PAGE_SHIFT` keeps the value its
+     /// 16 KiB literal had
+-    #[cfg(target_arch = "aarch64")]
++    #[cfg(any(target_arch = "aarch64", feature = "guest-page-16k"))]
+     #[test]
+     fn guest_page_constants_keep_their_16k_values_on_aarch64() {
+         use crate::{device::root, display, fifo::ring, memory::page_table};
+@@ -542,7 +552,7 @@ mod tests {
+ 
+     /// On x86-64 the guest's pages are 4 KiB: a page table is 1024 entries of 4 KiB page numbers,
+     /// and the display state page's mapping is one of them
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", not(feature = "guest-page-16k")))]
+     #[test]
+     fn guest_page_constants_are_4k_on_x86_64() {
+         use crate::{device::root, display, fifo::ring, memory::page_table};
+diff --git a/crates/reims-vgpu-core/src/iosurface/descriptor.rs b/crates/reims-vgpu-core/src/iosurface/descriptor.rs
+index 122b9d1cf036ed4dfd86ae5fe5f4f2af4b636045..8b4f6e825b20eaff66038ff284ac184ddedaa988 100644
+--- a/crates/reims-vgpu-core/src/iosurface/descriptor.rs
++++ b/crates/reims-vgpu-core/src/iosurface/descriptor.rs
+@@ -447,7 +447,7 @@ pub(super) fn plane_specs(
+ /// lists each of its pages as a client address range; a host-only one lists none. The
+ /// surface-level compression type goes under the plane key, as the device has always sent it.
+ pub(super) fn surface_spec<P: Platform>(
+-    p: &P,
++    _p: &P,
+     descriptor: &IoSurfaceDeviceDescriptor2,
+     slot: &mut SurfaceSlot<P>,
+ ) -> Option<SurfaceSpec> {
+@@ -498,7 +498,7 @@ pub(super) fn surface_spec<P: Platform>(
+         log::debug!("the surface is host-only");
+         return Some(spec);
+     }
+-    let page = p.vm().page_size();
++    let page = crate::guest::records::APV_PAGE_SIZE;
+     spec.client_address_ranges = Some(
+         slot.pages
+             .iter()
+diff --git a/crates/reims-vgpu-core/src/iosurface/device.rs b/crates/reims-vgpu-core/src/iosurface/device.rs
+index 035fc0adcae714c92282d13c34033566ba97666e..f8d10787192039030f9ff40cdb09103c5dbdc98c 100644
+--- a/crates/reims-vgpu-core/src/iosurface/device.rs
++++ b/crates/reims-vgpu-core/src/iosurface/device.rs
+@@ -275,7 +275,8 @@ impl<P: Platform> IoSurfaceHostDevice<P> {
+         platform: &Arc<P>,
+         descriptor: &IoSurfaceHostDeviceDescriptor,
+     ) -> Result<HostDeviceHandle<P>, IoSurfaceRefusal> {
+-        let page = platform.vm().page_size();
++        // Guest geometry follows pinned vphone guest-pages.patch; host VM remains unchanged.
++        let page = crate::guest::records::APV_PAGE_SIZE;
+         let table_len = page / const { NonZeroU64::new(TABLE_ENTRY_SIZE).unwrap() };
+         let descriptors_per_page = page / Form::First.size();
+         let mmio_length = descriptor.mmio_length;
+@@ -378,14 +379,14 @@ impl<P: Platform> HostDeviceCore<P> {
+             })
+     }
+ 
+-    /// The VM page size.
++    /// The guest page size.
+     pub(super) fn page_size(&self) -> u64 {
+-        self.platform.vm().page_size()
++        crate::guest::records::APV_PAGE_SIZE
+     }
+ 
+-    /// The VM page shift.
++    /// The guest page shift.
+     pub(super) fn page_shift(&self) -> u32 {
+-        self.platform.vm().page_shift()
++        crate::guest::records::APV_PAGE_SHIFT
+     }
+ 
+     /// Another reference to the IOSurface mapped at `mapping_id`, made on the device's queue;
+diff --git a/crates/reims-vgpu-core/src/iosurface/regs.rs b/crates/reims-vgpu-core/src/iosurface/regs.rs
+index 9afa2abd0d65be0bf3e65c732d1691470bae7d7f..eefd840ca1a1c0e7a21b9d4fd6a70c0c8b2bf5e2 100644
+--- a/crates/reims-vgpu-core/src/iosurface/regs.rs
++++ b/crates/reims-vgpu-core/src/iosurface/regs.rs
+@@ -266,6 +266,27 @@ mod tests {
+     use crate::testkit::script::Step;
+     use crate::testkit::vm::KERN_NO_SPACE;
+ 
++    #[cfg(feature = "guest-page-16k")]
++    #[test]
++    fn guest_16k_iosurface_table_on_4k_host() {
++        use crate::platform::Platform;
++        let r = rig();
++        assert_eq!(r.p.vm().page_size(), 0x1000);
++        r.dev.mmio_write(REG_DESCRIPTOR_BASE, B + 0x4000);
++        assert_eq!(r.dev.maps.lock().table.as_ref().unwrap().length(), 0x4000);
++        assert_eq!(r.dev.page_size(), 0x4000);
++        assert_eq!(r.dev.page_shift(), 14);
++        assert_eq!(r.dev.state.lock().table_len, 0x4000 / 4);
++        // A valid final full page maps, while a 4 KiB tail cannot supply a guest page.
++        r.dev.mmio_write(REG_DESCRIPTOR_BASE, B + RAM_PAGES * PAGE - 0x4000);
++        assert_eq!(r.dev.maps.lock().table.as_ref().unwrap().length(), 0x4000);
++        r.dev.mmio_write(REG_DESCRIPTOR_BASE, B + RAM_PAGES * PAGE - 0x1000);
++        assert!(r.dev.maps.lock().table.is_none());
++        r.dev.mmio_write(REG_DESCRIPTOR_BASE, HOLE);
++        assert!(r.dev.maps.lock().table.is_none());
++        r.dev.mmio_write(REG_DESCRIPTOR_BASE, 0);
++    }
++
+     mod mmio {
+         use super::*;
+ 
+diff --git a/crates/reims-vgpu-vulkan/Cargo.toml b/crates/reims-vgpu-vulkan/Cargo.toml
+index bbd521885f33545f62b7a08b0fb6e7f1ab061697..41a04a213a757abbc011db142bfd6c92521386c5 100644
+--- a/crates/reims-vgpu-vulkan/Cargo.toml
++++ b/crates/reims-vgpu-vulkan/Cargo.toml
+@@ -8,6 +8,8 @@ publish.workspace = true
+ license.workspace = true
+ 
+ [dependencies]
++astcenc-rs = "=0.2.0"
++half = "2"
+ reims-vgpu-core.workspace = true
+ metal2vulkan-runtime.workspace = true
+ metal2vulkan.workspace = true
+@@ -34,6 +36,7 @@ libc.workspace = true
+ sha2.workspace = true
+ 
+ [dev-dependencies]
++astc-decode = { path = "../../../astc-decode-reference" }
+ reims-vgpu-core = { workspace = true, features = ["testkit"] }
+ 
+ [lints]
+diff --git a/crates/reims-vgpu-vulkan/src/api.rs b/crates/reims-vgpu-vulkan/src/api.rs
+index ae96a7e58091fb035779b1eafff761a4d56dc238..5f594915713ca45ef8db2548dfd2c512b922c448 100644
+--- a/crates/reims-vgpu-vulkan/src/api.rs
++++ b/crates/reims-vgpu-vulkan/src/api.rs
+@@ -40,6 +40,7 @@ mod tests {
+         let all = rt::Region::new_2d(0, 0, width, height);
+         raw.replace_region(all, 0, 0, px, width * 4, 0).unwrap();
+         Obj::new(TextureObject {
++            astc: None,
+             raw,
+             device: d.clone_ref(),
+             surface: None,
+diff --git a/crates/reims-vgpu-vulkan/src/gpu.rs b/crates/reims-vgpu-vulkan/src/gpu.rs
+index 5c629d04bcf99d038a205b335aa6654d97d7571b..225b6834b18845bdffba9ebc1778cc358f2e6f6c 100644
+--- a/crates/reims-vgpu-vulkan/src/gpu.rs
++++ b/crates/reims-vgpu-vulkan/src/gpu.rs
+@@ -19,6 +19,7 @@
+ //! typed values here: a value the runtime's type cannot hold dies at the selector that took it
+ //! ([`crate::answer::unrepresentable`]).
+ 
++pub mod astc;
+ pub mod backing;
+ pub mod caps;
+ pub mod command;
+diff --git a/crates/reims-vgpu-vulkan/src/gpu/astc.rs b/crates/reims-vgpu-vulkan/src/gpu/astc.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..7492af1668cb6f28a61e08a89fef5abf716a316c
+--- /dev/null
++++ b/crates/reims-vgpu-vulkan/src/gpu/astc.rs
+@@ -0,0 +1,485 @@
++//! Narrow ASTC4x4 LDR / ASTC6x6 sRGB fallback for CPU-uploaded, sampled, shared 2D textures.
++//! The guest's block storage is separate from the RGBA16F sampled image. Blits must
++//! not use the sampled image as compressed storage (resource::copied rejects them).
++use astcenc_rs::{ConfigBuilder, Context, Extents, Flags, Profile, Swizzle};
++use metal2vulkan_runtime as rt;
++use reims_vgpu_core::platform::types::MtlRegion;
++use std::cell::RefCell;
++use std::sync::Mutex;
++
++thread_local! {
++    static DECODER: RefCell<Option<(u32, bool, Context)>> = const { RefCell::new(None) };
++}
++
++#[derive(Debug)]
++/// Compressed mip stores shared by a texture and its own-format views.
++pub struct State { levels: Vec<std::sync::Arc<Level>> }
++impl State {
++    /// Descriptor subset with bounded per-level storage and implemented uploads.
++    pub fn accepts(d:&rt::TextureDescriptor) -> bool { Level::accepts(d) }
++    /// Single-level linear4x4 compatibility constructor.
++    pub fn new(w:u64,h:u64)->Self { Self::new_format(w,h,204) }
++    /// Single-level constructor for tested formats.
++    pub fn new_format(w:u64,h:u64,f:u64)->Self { Self::new_mipmapped(w,h,f,1) }
++    /// Allocate distinct block storage for each mip.
++    pub fn new_mipmapped(w:u64,h:u64,f:u64,count:u64)->Self {
++        Self {levels:(0..count).map(|l| std::sync::Arc::new(Level::new_format((w>>l).max(1),(h>>l).max(1),f))).collect()}
++    }
++    /// Guest compressed format remains unchanged in the decoded backing.
++    pub fn format(&self)->u64 { self.levels[0].format() }
++    /// Retain only the mip stores named by a validated runtime view.
++    pub fn subview(&self,base:u64,count:u64)->Result<Self,String> {
++        let end=base.checked_add(count).ok_or("ASTC view range overflow")?;
++        let levels=self.levels.get(base as usize..end as usize).ok_or("ASTC view mip range")?;
++        if levels.is_empty() {return Err("empty ASTC view".into());}
++        Ok(Self {levels:levels.to_vec()})
++    }
++    fn level_view(raw:&rt::Texture,l:u64)->Result<rt::Texture,rt::Error> {
++        raw.new_texture_view_with_levels_slices(metal2vulkan::metal::PixelFormat::RGBA16Float,
++            metal2vulkan::metal::TextureType::Type2D,l..l+1,0..1)
++    }
++    /// Initialize shared levels; private contents remain undefined until GPU upload, as Metal permits.
++    pub fn initialize(&self,raw:&rt::Texture)->Result<(),String> {
++        for (i,state) in self.levels.iter().enumerate() {
++            let view=Self::level_view(raw,i as u64).map_err(|e|format!("ASTC mip view: {e:?}"))?;
++            state.initialize(&view)?;
++        }
++        Ok(())
++    }
++    /// CPU writes are valid only for shared textures and the selected mip.
++    pub fn upload(&self,raw:&rt::Texture,r:MtlRegion,level:u64,slice:u64,bytes:&[u8],row:u64,image:u64)->Result<(),String> {
++        if raw.storage_mode()==rt::StorageMode::Private {return Err("CPU upload to private ASTC texture".into());}
++        let state=self.levels.get(level as usize).ok_or("ASTC upload mip range")?;
++        let view=Self::level_view(raw,level).map_err(|e|format!("ASTC mip view: {e:?}"))?;
++        state.upload(&view,r,0,slice,bytes,row,image)
++    }
++    /// Decode only after the producer's GPU work, then upload the selected shared or private mip.
++    pub fn blit(self:&std::sync::Arc<Self>,e:&mut rt::BlitCommandEncoder,source:&rt::Buffer,offset:u64,row:u64,image:u64,r:MtlRegion,level:u64,slice:u64,target:&rt::Texture)->Result<(),rt::Error> {
++        let Some(state)=self.levels.get(level as usize) else {
++            return Err(rt::Error::Compile(metal2vulkan::error::Error::Internal(metal2vulkan::error::InternalError::new(metal2vulkan::error::InternalKind::Invariant,"ASTC upload mip range"))));
++        };
++        let view=Self::level_view(target,level)?;
++        state.blit(e,source,offset,row,image,r,0,slice,&view)
++    }
++    /// Return original compressed blocks at this command's position, not decoded RGBA16F texels.
++    pub fn readback(self:&std::sync::Arc<Self>,e:&mut rt::BlitCommandEncoder,destination:&rt::Buffer,offset:u64,row:u64,image:u64,r:MtlRegion,level:u64,slice:u64)->Result<(),rt::Error> {
++        let fail=|s:&str|rt::Error::Compile(metal2vulkan::error::Error::Internal(metal2vulkan::error::InternalError::new(metal2vulkan::error::InternalKind::Invariant,s)));
++        let state=self.levels.get(level as usize).ok_or_else(||fail("ASTC readback mip range"))?;
++        let (x,y,w,h,b)=(r.origin.x,r.origin.y,r.size.width,r.size.height,state.block);
++        if slice!=0 || r.origin.z!=0 || r.size.depth!=1 || w==0 || h==0 || x>state.width || y>state.height || w>state.width-x || h>state.height-y || x%b!=0 || y%b!=0 || (w%b!=0 && x+w!=state.width) || (h%b!=0 && y+h!=state.height) {return Err(fail("ASTC readback block region"));}
++        let tight=w.div_ceil(b)*16;let rows=h.div_ceil(b);
++        let required=row.checked_mul(rows-1).and_then(|v|v.checked_add(tight));
++        if row<tight || required.is_none() || (image!=0 && image<required.unwrap()) {return Err(fail("ASTC readback strides"));}
++        let state=std::sync::Arc::clone(state);
++        let producer=std::sync::Arc::new(move || {
++            let blocks=state.blocks.lock().map_err(|_|"ASTC block storage poisoned".to_string())?;
++            let pitch=state.width.div_ceil(b)*16;let mut bytes=Vec::with_capacity((tight*rows) as usize);
++            for j in 0..rows {let start=((y/b+j)*pitch+x/b*16) as usize;bytes.extend_from_slice(&blocks[start..start+tight as usize]);}
++            Ok(bytes)
++        });
++        e.copy_host_rows_to_buffer(destination,offset,row,tight,rows,producer)
++    }
++
++}
++
++#[derive(Debug)]
++/// Original ASTC blocks shared by the texture and its views.
++struct Level {
++    block: u64,
++    format: u64,
++    width: u64,
++    height: u64,
++    blocks: Mutex<Vec<u8>>,
++}
++
++impl Level {
++    /// The descriptor subset with implemented upload semantics.
++    pub fn accepts(d: &rt::TextureDescriptor) -> bool {
++        use metal2vulkan::metal::{TextureType, TextureUsage};
++        d.texture_type == TextureType::Type2D && d.depth == 1
++            && d.array_length == 1 && d.mipmap_level_count > 0 && d.mipmap_level_count <= 1 + u64::from(d.width.max(d.height).max(1).ilog2()) && d.sample_count == 1
++            && d.width > 0 && d.height > 0 && d.width <= 4096 && d.height <= 4096
++            && matches!(d.resource_options.storage_mode(), Ok(rt::StorageMode::Shared | rt::StorageMode::Private))
++            && d.usage.contains(TextureUsage::SHADER_READ)
++            && !d.usage.intersects(TextureUsage::SHADER_WRITE | TextureUsage::RENDER_TARGET)
++    }
++
++    /// Allocate the guest-visible block store.
++    pub fn new(width: u64, height: u64) -> Self {
++        Self::new_format(width, height, 204)
++    }
++
++    /// Guest-visible compressed format, retained across own-format views.
++    pub fn format(&self) -> u64 { self.format }
++
++    /// Allocate compressed storage with the selected tested block footprint.
++    pub fn new_format(width: u64, height: u64, format: u64) -> Self {
++        let block = match format { 204 => 4, 190 => 6, _ => panic!("unsupported ASTC fallback format") };
++        Self { width, height, block, format, blocks: Mutex::new(vec![0; (width.div_ceil(block) * height.div_ceil(block) * 16) as usize]) }
++    }
++
++    /// Start the sampled image as zero blocks decode, including invalid-block colors.
++    pub fn initialize(&self, raw: &rt::Texture) -> Result<(), String> {
++        if raw.storage_mode() == rt::StorageMode::Private { return Ok(()); }
++        let blocks = self.blocks.lock().unwrap();
++        let decoded = decode_format(&blocks, self.width as u32, self.height as u32, self.block as u32, self.format == 190)?;
++        raw.replace_region(rt::Region::new_2d(0, 0, self.width, self.height), 0, 0,
++            &decoded, self.width*8, 0).map_err(|e| format!("ASTC initial decode upload: {e:?}"))
++    }
++
++    /// Validate before mutating either representation; keep padding out of block storage.
++    pub fn upload(&self, raw: &rt::Texture, r: MtlRegion, level: u64, slice: u64,
++        bytes: &[u8], row: u64, image: u64) -> Result<(), String> {
++        let (packed, decoded) = self.prepare(r,level,slice,bytes,row,image)?;
++        let (x,y,w,h) = (r.origin.x,r.origin.y,r.size.width,r.size.height);
++        let tight = w.div_ceil(self.block)*16;
++        let rows = h.div_ceil(self.block);
++        // Serialize writes of both representations, including uploads through an own-format view.
++        let mut blocks = self.blocks.lock().unwrap();
++        raw.replace_region(rt::Region::new_2d(x, y, w, h), 0, 0, &decoded, w*8, 0)
++            .map_err(|e| format!("ASTC decoded upload: {e:?}"))?;
++        let pitch = self.width.div_ceil(self.block) * 16;
++        for j in 0..rows {
++            let at = ((y/self.block+j)*pitch + x/self.block*16) as usize;
++            blocks[at..at+tight as usize].copy_from_slice(&packed[(j*tight) as usize..((j+1)*tight) as usize]);
++        }
++        log::warn!("ASTC CPU decoded upload {w}x{h} at {x},{y}");
++        Ok(())
++    }
++    fn prepare(&self, r:MtlRegion,level:u64,slice:u64,bytes:&[u8],row:u64,image:u64) -> Result<(Vec<u8>,Vec<u8>),String> {
++        let (x, y, w, h) = (r.origin.x, r.origin.y, r.size.width, r.size.height);
++        if level != 0 || slice != 0 || r.origin.z != 0 || r.size.depth != 1
++            || w == 0 || h == 0 || x > self.width || y > self.height
++            || w > self.width - x || h > self.height - y
++            || x % self.block != 0 || y % self.block != 0
++            || (w % self.block != 0 && x + w != self.width)
++            || (h % self.block != 0 && y + h != self.height) {
++            return Err("ASTC fallback requires a valid block-aligned region of level/slice zero".into());
++        }
++        let tight = w.div_ceil(self.block) * 16;
++        let rows = h.div_ceil(self.block);
++        let needed = row.checked_mul(rows - 1).and_then(|n| n.checked_add(tight));
++        if row < tight || needed.is_none_or(|n| n > bytes.len() as u64)
++            || (image != 0 && image < needed.unwrap()) {
++            return Err("ASTC upload source is short or has invalid row/image strides".into());
++        }
++        let mut packed = vec![0; (tight * rows) as usize];
++        for j in 0..rows as usize {
++            packed[j*tight as usize..(j+1)*tight as usize]
++                .copy_from_slice(&bytes[j*row as usize..j*row as usize+tight as usize]);
++        }
++        let decoded = decode_format(&packed, w as u32, h as u32, self.block as u32, self.format == 190)?;
++        Ok((packed,decoded))
++    }
++
++    /// Encode a GPU-ordered compressed buffer upload; CPU decoding happens after its readback.
++    pub fn blit(self: &std::sync::Arc<Self>, e:&mut rt::BlitCommandEncoder, source:&rt::Buffer,
++        offset:u64, row:u64, image:u64, r:MtlRegion, level:u64,slice:u64, target:&rt::Texture) -> Result<(),rt::Error> {
++        let fail = |detail| rt::Error::Compile(metal2vulkan::error::Error::Internal(
++            metal2vulkan::error::InternalError::new(metal2vulkan::error::InternalKind::Invariant,detail)));
++        let (x,y,w,h) = (r.origin.x,r.origin.y,r.size.width,r.size.height);
++        if level != 0 || slice != 0 || r.origin.z != 0 || r.size.depth != 1
++            || w == 0 || h == 0 || x > self.width || y > self.height
++            || w > self.width-x || h > self.height-y || x%self.block != 0 || y%self.block != 0
++            || (w%self.block != 0 && x+w != self.width) || (h%self.block != 0 && y+h != self.height)
++            || row < w.div_ceil(self.block)*16 {
++            return Err(fail("ASTC GPU upload outside supported block-aligned region"));
++        }
++        let state = std::sync::Arc::clone(self);
++        let length = row.checked_mul(r.size.height.div_ceil(state.block).saturating_sub(1))
++            .and_then(|n| n.checked_add(r.size.width.div_ceil(state.block)*16)).unwrap_or(u64::MAX);
++        let decode = std::sync::Arc::new(move |bytes:&[u8]| {
++            let (packed,decoded) = state.prepare(r,level,slice,bytes,row,image)?;
++            let pitch = state.width.div_ceil(state.block)*16;
++            let tight = r.size.width.div_ceil(state.block)*16;
++            let mut blocks = state.blocks.lock().unwrap();
++            for j in 0..r.size.height.div_ceil(state.block) {
++                let at = ((r.origin.y/state.block+j)*pitch+r.origin.x/state.block*16) as usize;
++                blocks[at..at+tight as usize].copy_from_slice(&packed[(j*tight) as usize..((j+1)*tight) as usize]);
++            }
++            log::warn!("ASTC GPU-ordered CPU decode {}x{}",r.size.width,r.size.height);
++            Ok(decoded)
++        });
++        e.copy_buffer_to_texture_decoded(source,offset,length,target,crate::gpu::region(r),
++            r.size.width*8,r.size.width*r.size.height*8,decode)
++    }
++
++}
++
++/// Decode with Arm's default fp16 decode mode, retaining fp16 sampled texels.
++pub fn decode(blocks: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
++    decode_format(blocks, width, height, 4, false)
++}
++
++fn decode_format(blocks: &[u8], width: u32, height: u32, block: u32, srgb: bool) -> Result<Vec<u8>, String> {
++    let expected = width.div_ceil(block) as usize * height.div_ceil(block) as usize * 16;
++    if width == 0 || height == 0 || width > 4096 || height > 4096 || blocks.len() != expected {
++        return Err("invalid ASTC4x4 image extent or block count".into());
++    }
++    DECODER.with(|cell| {
++        let mut slot = cell.borrow_mut();
++        if slot.as_ref().is_none_or(|(b,s,_)| *b != block || *s != srgb) {
++            let config = ConfigBuilder::new().with_profile(if srgb { Profile::LdrSrgb } else { Profile::LdrRgba })
++                .with_block_size(Extents::new(block, block)).with_flags(Flags::DECOMPRESS_ONLY)
++                .build().map_err(|e| format!("ASTC config: {e:?}"))?;
++            *slot = Some((block, srgb, Context::with_threads(1, config).map_err(|e| format!("ASTC context: {e:?}"))?));
++        }
++        let pixels = slot.as_mut().unwrap().2.decompress::<f32>(blocks, Extents::new(width, height), Swizzle::rgba())
++            .map_err(|e| format!("ASTC decode: {e:?}"))?;
++        Ok(pixels.data[0].iter().enumerate().flat_map(|(i,v)| {
++            // astcenc returns encoded sRGB values; the float backing must store linear RGB.
++            let v = if srgb && i % 4 != 3 { if *v <= 0.04045 { *v / 12.92 } else { ((*v + 0.055) / 1.055).powf(2.4) } } else { *v };
++            half::f16::from_f32(v).to_bits().to_le_bytes()
++        }).collect())
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    fn constant(rgba: [u16;4]) -> [u8;16] {
++        let mut b = [255;16]; b[0] = 0xfc; b[1] = 0xfd;
++        for (i, v) in rgba.into_iter().enumerate() { b[8+i*2..10+i*2].copy_from_slice(&v.to_le_bytes()); }
++        b
++    }
++    #[test]
++    fn astc_decode_constant_odd_sizes_and_invalid_lengths() {
++        for (w,h) in [(1usize,1usize),(7,3),(120,57)] {
++            let b = constant([65535,0,32768,65535]);
++            let blocks = b.repeat(w.div_ceil(4) * h.div_ceil(4));
++            let pixels = decode(&blocks, w as u32, h as u32).unwrap();
++            assert_eq!(pixels.len(), w*h*8);
++            for p in pixels.chunks_exact(8) {
++                assert_eq!(&p[..4], &[0,0x3c,0,0]);
++                assert_eq!(&p[6..], &[0,0x3c]);
++                assert!((half::f16::from_bits(u16::from_le_bytes([p[4],p[5]])).to_f32()-0.5).abs()<0.001);
++            }
++        }
++        assert!(decode(&[0;15], 1, 1).is_err());
++        assert!(decode(&[], 0, 1).is_err());
++    }
++
++    #[test]
++    fn astc_6x6_srgb_midtones_linearize_rgb_but_not_alpha() {
++        let b = constant([32768, 16384, 65535, 32768]);
++        let pixels = decode_format(&b.repeat(4),7,7,6,true).unwrap();
++        for p in pixels.chunks_exact(8) {
++            let f = |c:usize| half::f16::from_bits(u16::from_le_bytes([p[c*2],p[c*2+1]])).to_f32();
++            assert!((f(0)-0.21586).abs()<0.002, "red {}",f(0));
++            assert!((f(1)-0.05127).abs()<0.002, "green {}",f(1));
++            assert_eq!(f(2),1.0);
++            assert!((f(3)-0.5).abs()<0.002, "alpha {}",f(3));
++        }
++        assert!(decode_format(&b,7,7,6,true).is_err());
++        // Switching profiles on a single worker must not retain the previous context.
++        assert_eq!(&decode(&constant([65535,0,0,65535]),1,1).unwrap()[..2], &[0,0x3c]);
++    }
++
++    #[test]
++    fn astc_private_mips_and_offset_view_preserve_order_and_extent() {
++        use metal2vulkan::metal::PixelFormat;
++        use reims_vgpu_core::platform::types::{MtlOrigin,MtlSize};
++        let d=crate::gpu::device::tests::dev();
++        let mut desc=rt::TextureDescriptor::texture_2d(PixelFormat::RGBA16Float,15,13,true);
++        desc.mipmap_level_count=3; desc.resource_options=rt::ResourceOptions::private();
++        let t=d.raw.new_texture(&desc).unwrap();
++        let state=std::sync::Arc::new(State::new_mipmapped(15,13,190,3));
++        state.initialize(&t).unwrap();
++        let queue=d.raw.new_command_queue().unwrap();
++        for level in 0..3u64 {
++            let (w,h)=((15u64>>level).max(1),(13u64>>level).max(1));
++            let blocks=constant([32768,0,0,65535]).repeat((w.div_ceil(6)*h.div_ceil(6)) as usize);
++            let source=d.raw.new_buffer_with_bytes(&blocks,rt::ResourceOptions::shared()).unwrap();
++            let r=MtlRegion{origin:MtlOrigin{x:0,y:0,z:0},size:MtlSize{width:w,height:h,depth:1}};
++            assert!(state.upload(&t,r,level,0,&blocks,w.div_ceil(6)*16,0).is_err());
++            let cb=queue.command_buffer().unwrap(); let mut e=cb.blit_command_encoder().unwrap();
++            state.blit(&mut e,&source,0,w.div_ceil(6)*16,0,r,level,0,&t).unwrap();
++            e.end_encoding().unwrap();cb.commit().unwrap();cb.wait_until_completed_for(std::time::Duration::from_secs(30)).unwrap();
++            assert_eq!(cb.status(),rt::CommandBufferStatus::Completed,"{:?}",cb.error());
++            // Copy private texels into a shared texture for independent readback.
++            let output=d.raw.new_texture(&rt::TextureDescriptor::texture_2d(PixelFormat::RGBA16Float,w,h,false)).unwrap();
++            let view=State::level_view(&t,level).unwrap();
++            let read=queue.command_buffer().unwrap();let mut e=read.blit_command_encoder().unwrap();
++            e.copy_from_texture_to_texture(&view,0,0,rt::Origin::new(0,0,0),rt::Size::new(w,h,1),&output,0,0,rt::Origin::new(0,0,0)).unwrap();
++            e.end_encoding().unwrap();read.commit().unwrap();read.wait_until_completed_for(std::time::Duration::from_secs(30)).unwrap();
++            let mut got=vec![0;(w*h*8) as usize];output.get_bytes(&mut got,w*8,0,rt::Region::new_2d(0,0,w,h),0,0).unwrap();
++            for p in got.chunks_exact(8) { let red=half::f16::from_bits(u16::from_le_bytes([p[0],p[1]])).to_f32();assert!((red-0.21586).abs()<0.002);assert_eq!(&p[6..],&[0,0x3c]); }
++        }
++        let sub=state.subview(1,2).unwrap();
++        assert_eq!(sub.levels[0].width,7);assert_eq!(sub.levels[1].width,3);
++        assert!(std::sync::Arc::ptr_eq(&sub.levels[0],&state.levels[1]));
++        assert!(state.subview(2,2).is_err());assert!(state.subview(0,0).is_err());
++    }
++
++    #[test]
++    fn astc_readback_returns_compressed_blocks_in_gpu_order_with_padding() {
++        use metal2vulkan::metal::PixelFormat;
++        use reims_vgpu_core::platform::types::{MtlOrigin,MtlSize};
++        let d=crate::gpu::device::tests::dev();
++        for (format,b) in [(204,4u64),(190,6)] {
++            let (w,h)=(b+1,b+1);
++            let mut desc=rt::TextureDescriptor::texture_2d(PixelFormat::RGBA16Float,w*2,h*2,true);
++            desc.mipmap_level_count=2;desc.resource_options=rt::ResourceOptions::private();
++            let texture=d.raw.new_texture(&desc).unwrap();
++            let state=std::sync::Arc::new(State::new_mipmapped(w*2,h*2,format,2));state.initialize(&texture).unwrap();
++            let red=constant([65535,0,0,65535]).repeat(4);let green=constant([0,65535,0,65535]).repeat(4);
++            let red_source=d.raw.new_buffer_with_bytes(&red,rt::ResourceOptions::shared()).unwrap();
++            let green_source=d.raw.new_buffer_with_bytes(&green,rt::ResourceOptions::shared()).unwrap();
++            let initial=vec![0xa5;256];let initial_buffer=d.raw.new_buffer_with_bytes(&initial,rt::ResourceOptions::shared()).unwrap();
++            let destination=d.raw.new_buffer(256,rt::ResourceOptions::private()).unwrap();
++            let result=d.raw.new_buffer(256,rt::ResourceOptions::shared()).unwrap();
++            let r=MtlRegion{origin:MtlOrigin{x:0,y:0,z:0},size:MtlSize{width:w,height:h,depth:1}};
++            let q=d.raw.new_command_queue().unwrap();let cb=q.command_buffer().unwrap();let mut e=cb.blit_command_encoder().unwrap();
++            e.copy_from_buffer_to_buffer(&initial_buffer,0,&destination,0,256).unwrap();
++            state.blit(&mut e,&green_source,0,32,0,r,1,0,&texture).unwrap();
++            state.readback(&mut e,&destination,16,48,0,r,1,0).unwrap();
++            state.blit(&mut e,&red_source,0,32,0,r,1,0,&texture).unwrap();
++            state.readback(&mut e,&destination,144,48,0,r,1,0).unwrap();
++            e.copy_from_buffer_to_buffer(&destination,0,&result,0,256).unwrap();
++            e.end_encoding().unwrap();cb.commit().unwrap();cb.wait_until_completed_for(std::time::Duration::from_secs(30)).unwrap();
++            assert_eq!(cb.status(),rt::CommandBufferStatus::Completed,"{:?}",cb.error());
++            let got=unsafe {std::slice::from_raw_parts(result.contents().unwrap().as_ptr(),256)};
++            let mut expected=initial;expected[16..48].copy_from_slice(&green[..32]);expected[64..96].copy_from_slice(&green[32..]);expected[144..176].copy_from_slice(&red[..32]);expected[192..224].copy_from_slice(&red[32..]);
++            assert_eq!(got,expected,"original compressed blocks and untouched padding");
++            let cb=q.command_buffer().unwrap();let mut e=cb.blit_command_encoder().unwrap();
++            assert!(state.readback(&mut e,&destination,240,48,0,r,1,0).is_err());
++            assert!(state.readback(&mut e,&destination,0,16,0,r,1,0).is_err());
++            assert!(state.readback(&mut e,&destination,0,48,0,r,2,0).is_err());
++            e.end_encoding().unwrap();
++        }
++    }
++
++    #[test]
++    fn astc_public_images_match_independent_decoder() {
++        for file in [
++            &include_bytes!("../../../../../astc-decode-reference/src/test-data/atlas_small_4x4.astc")[..],
++            &include_bytes!("../../../../../astc-decode-reference/src/test-data/footprint_4x4.astc")[..],
++            &include_bytes!("../../../../../astc-decode-reference/src/test-data/rgb_4x4.astc")[..],
++            &include_bytes!("../../../../../astc-decode-reference/src/test-data/atlas_small_6x6.astc")[..],
++            &include_bytes!("../../../../../astc-decode-reference/src/test-data/footprint_6x6.astc")[..],
++            &include_bytes!("../../../../../astc-decode-reference/src/test-data/rgb_6x6.astc")[..],
++        ] {
++            let axis = |i| u32::from_le_bytes([file[i],file[i+1],file[i+2],0]);
++            let (w,h) = (axis(7),axis(10));
++            let start = std::time::Instant::now();
++            let block = file[4] as u32;
++            let srgb = block == 6;
++            let pixels = decode_format(&file[16..],w,h,block,srgb).unwrap();
++            eprintln!("ASTC Arm fp16 decode {w}x{h}: {:?}",start.elapsed());
++            let mut compared = 0usize;
++            astc_decode::astc_decode(&file[16..],w,h,astc_decode::Footprint::new(block,block),|x,y,rgba| {
++                for (c,want) in rgba.into_iter().enumerate() {
++                    let i = ((y*w+x)*8) as usize + c*2;
++                    let got = half::f16::from_bits(u16::from_le_bytes([pixels[i],pixels[i+1]])).to_f32();
++                    // The independent reference quantizes to UNORM8; Arm retains fp16.
++                    let encoded = want as f32/255.;
++                    let reference = if srgb && c != 3 { if encoded <= 0.04045 { encoded/12.92 } else { ((encoded+0.055)/1.055).powf(2.4) } } else { encoded };
++                    assert!((got - reference).abs() <= 3./255., "{x},{y} ch{c}: {got} vs {want}/255");
++                    compared += 1;
++                }
++            }).unwrap();
++            assert_eq!(compared,(w*h*4) as usize);
++        }
++    }
++
++    #[test]
++    fn astc_gpu_ordered_blit_reads_producer_and_precedes_later_writes() {
++        use metal2vulkan::metal::PixelFormat;
++        use reims_vgpu_core::platform::types::{MtlOrigin,MtlSize};
++        let d = crate::gpu::device::tests::dev();
++        for (format,block) in [(204,4u64),(190,6)] {
++        let width = block+3;
++        let desc = rt::TextureDescriptor::texture_2d(PixelFormat::RGBA16Float,width,3,false);
++        let t = d.raw.new_texture(&desc).unwrap();
++        let state = std::sync::Arc::new(State::new_format(width,3,format)); state.initialize(&t).unwrap();
++        let red = d.raw.new_buffer_with_bytes(&constant([65535,0,0,65535]).repeat(2),rt::ResourceOptions::shared()).unwrap();
++        let green = d.raw.new_buffer_with_bytes(&constant([0,65535,0,65535]).repeat(2),rt::ResourceOptions::shared()).unwrap();
++        let source = d.raw.new_buffer(32,rt::ResourceOptions::private()).unwrap();
++        let queue = d.raw.new_command_queue().unwrap(); let cb = queue.command_buffer().unwrap();
++        let mut e = cb.blit_command_encoder().unwrap();
++        e.copy_from_buffer_to_buffer(&red,0,&source,0,32).unwrap();
++        let r = MtlRegion {origin:MtlOrigin{x:0,y:0,z:0},size:MtlSize{width,height:3,depth:1}};
++        state.blit(&mut e,&source,0,32,0,r,0,0,&t).unwrap();
++        e.copy_from_buffer_to_buffer(&green,0,&source,0,32).unwrap();
++        let patch = MtlRegion {origin:MtlOrigin{x:block,y:0,z:0},size:MtlSize{width:3,height:3,depth:1}};
++        state.blit(&mut e,&source,16,16,0,patch,0,0,&t).unwrap();
++        e.end_encoding().unwrap(); cb.commit().unwrap();
++        cb.wait_until_completed_for(std::time::Duration::from_secs(30)).unwrap();
++        assert_eq!(cb.status(),rt::CommandBufferStatus::Completed,"{:?}",cb.error());
++        let mut got = vec![0;(width*3*8) as usize];
++        t.get_bytes(&mut got,width*8,0,rt::Region::new_2d(0,0,width,3),0,0).unwrap();
++        for (i,p) in got.chunks_exact(8).enumerate() {
++            let wanted = if (i as u64)%width<block {[0,0x3c,0,0,0,0,0,0x3c]} else {[0,0,0,0x3c,0,0,0,0x3c]};
++            assert_eq!(p,wanted,"GPU-ordered pixel {i}");
++        }
++        }
++    }
++
++    #[test]
++    fn astc_gpu_upload_padded_partial_and_rejected_region() {
++        let d = crate::gpu::device::tests::dev();
++        use metal2vulkan::metal::PixelFormat;
++        use reims_vgpu_core::platform::types::{MtlOrigin, MtlSize};
++        for (format,block) in [(204,4u64),(190,6)] {
++        for (w,h) in [(1u64,1u64),(7,3),(120,57)] {
++            let desc = rt::TextureDescriptor::texture_2d(PixelFormat::RGBA16Float, w,h,false);
++            let t = d.raw.new_texture(&desc).unwrap();
++            let state = State::new_format(w,h,format);
++            state.initialize(&t).unwrap();
++            let region = MtlRegion { origin: MtlOrigin {x:0,y:0,z:0}, size: MtlSize {width:w,height:h,depth:1} };
++            let red = constant([65535,0,0,65535]);
++            let row = w.div_ceil(block)*16+16;
++            let rows = h.div_ceil(block);
++            let mut padded = vec![0xab; (row*rows) as usize];
++            for j in 0..rows { for i in 0..w.div_ceil(block) {
++                let at = (j*row+i*16) as usize;
++                padded[at..at+16].copy_from_slice(&red);
++            }}
++            state.upload(&t,region,0,0,&padded,row,0).unwrap();
++            // Actual NVIDIA shader sampling of the decoded backing, rather than CPU decode alone.
++            let lib = d.raw.new_library_with_data(include_bytes!("../../../../tests/suite/fixtures/shaders/compute_sample.metallib")).unwrap();
++            let function = lib.new_function_with_name("sample_k").unwrap();
++            let pipeline = d.raw.new_compute_pipeline_state_with_function(&function, &rt::PipelineOptions::default()).unwrap();
++            let sampler = d.raw.new_sampler_state(&metal2vulkan::bind::SamplerDescriptor::default()).unwrap();
++            let out = d.raw.new_buffer(16,rt::ResourceOptions::shared()).unwrap();
++            let queue = d.raw.new_command_queue().unwrap();
++            let cb = queue.command_buffer().unwrap();
++            let mut enc = cb.compute_command_encoder().unwrap();
++            enc.set_compute_pipeline_state(&pipeline).unwrap();
++            enc.set_texture(Some(&t),0).unwrap();
++            enc.set_sampler_state(Some(&sampler),0).unwrap();
++            enc.set_buffer(Some(&out),0,0).unwrap();
++            enc.dispatch_threads(rt::Size::new(4,1,1),rt::Size::new(1,1,1)).unwrap();
++            enc.end_encoding().unwrap(); cb.commit().unwrap();
++            cb.wait_until_completed_for(std::time::Duration::from_secs(30)).unwrap();
++            assert_eq!(cb.status(), rt::CommandBufferStatus::Completed, "{:?}",cb.error());
++            // SAFETY: the completed command owns no writes and the shared buffer holds 16 bytes.
++            let sampled = unsafe { std::slice::from_raw_parts(out.contents().unwrap().as_ptr(),16) };
++            assert!(sampled.chunks_exact(4).all(|p| p == [255,0,0,255]),"sampled {sampled:?}");
++            let all = rt::Region::new_2d(0,0,w,h);
++            let mut got = vec![0; (w*h*8) as usize];
++            t.get_bytes(&mut got,w*8,0,all,0,0).unwrap();
++            assert!(got.chunks_exact(8).all(|p| p == [0,0x3c,0,0,0,0,0,0x3c]));
++            let mut patch = region;
++            patch.origin.x = if w > block {block} else {0};
++            patch.size.width = (w-patch.origin.x).min(block);
++            patch.size.height = h.min(block);
++            let green = constant([0,65535,0,65535]);
++            state.upload(&t,patch,0,0,&green,16,0).unwrap();
++            t.get_bytes(&mut got,w*8,0,all,0,0).unwrap();
++            let before = got.clone();
++            for y in 0..h { for x in 0..w {
++                let i = ((y*w+x)*8) as usize;
++                let inside = x>=patch.origin.x && x<patch.origin.x+patch.size.width && y<patch.size.height;
++                let wanted = if inside {[0,0,0,0x3c,0,0,0,0x3c]} else {[0,0x3c,0,0,0,0,0,0x3c]};
++                assert_eq!(&got[i..i+8],wanted);
++            }}
++            patch.origin.x = w;
++            assert!(state.upload(&t,patch,0,0,&green,16,0).is_err());
++            t.get_bytes(&mut got,w*8,0,all,0,0).unwrap();
++            assert_eq!(got,before,"rejected upload leaves GPU image intact");
++            assert!(state.upload(&t,region,0,0,&padded[..1],row,0).is_err());
++        }
++        }
++    }
++}
+diff --git a/crates/reims-vgpu-vulkan/src/gpu/backing.rs b/crates/reims-vgpu-vulkan/src/gpu/backing.rs
+index 8f1120d5919375476cb72dd716fcff3192619a64..da96aafed1584aa9ebc13d4c6bf208fd6abbd964 100644
+--- a/crates/reims-vgpu-vulkan/src/gpu/backing.rs
++++ b/crates/reims-vgpu-vulkan/src/gpu/backing.rs
+@@ -1012,7 +1012,13 @@ pub(crate) fn gather(
+     // Every page of the ranges, those past `size` too, as Metal refuses one there (measured);
+     // checked before the alias takes address space, which a hole among the ranges could hold,
+     // and before a death of ranges Metal refuses.
+-    for span in spans(ranges, page)? {
++    let source_spans = spans(ranges, page)?;
++    #[cfg(target_os = "windows")]
++    if !vm.readable_ranges(&source_spans) {
++        return None;
++    }
++    #[cfg(not(target_os = "windows"))]
++    for span in source_spans {
+         let source = HostPtr::from_addr(usize::try_from(span.start).ok()?);
+         if !vm.readable(source, span.end - span.start) {
+             return None;
+diff --git a/crates/reims-vgpu-vulkan/src/gpu/device.rs b/crates/reims-vgpu-vulkan/src/gpu/device.rs
+index 4a5408611ea5a75b2250a70113e6752b5266ecef..03568accd255f98fb92385989894ac885f5252fd 100644
+--- a/crates/reims-vgpu-vulkan/src/gpu/device.rs
++++ b/crates/reims-vgpu-vulkan/src/gpu/device.rs
+@@ -45,6 +45,27 @@ use reims_vgpu_core::raise::{Kept, OnFault, RaiseResult, keep_forever};
+ use reims_vgpu_core::rt::{BlockEnv, Hold};
+ use reims_vgpu_core::sync::Mutex;
+ 
++
++/// Opt-in, bounded local evidence for a rejected guest library. Never overwrite an artifact.
++fn capture_rejected_library(data: &[u8], reason: &str) {
++    use std::io::Write;
++    use std::sync::atomic::{AtomicUsize, Ordering};
++    static NEXT: AtomicUsize = AtomicUsize::new(0);
++    let Some(directory) = std::env::var_os("REIMS_VGPU_REJECTED_LIBRARY_DIR") else { return; };
++    if data.len() > 16 * 1024 * 1024 { return; }
++    let index = NEXT.fetch_add(1, Ordering::Relaxed);
++    if index >= 4 { return; }
++    let base = std::path::PathBuf::from(directory).join(format!("rejected-{index:04}"));
++    let result = (|| -> std::io::Result<()> {
++        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(base.with_extension("bin"))?;
++        file.write_all(data)?;
++        let mut note = std::fs::OpenOptions::new().write(true).create_new(true).open(base.with_extension("txt"))?;
++        writeln!(note, "{reason}\n{} bytes", data.len())?;
++        Ok(())
++    })();
++    if let Err(error) = result { log::warn!("rejected-library capture failed: {error}"); }
++}
++
+ use crate::answer::{
+     Nil, Policy, RUNTIME_DOMAIN, create, decide, get, get_describing, hearing, metal_aborts, plain,
+     plain_at, send, unrepresentable,
+@@ -455,6 +476,7 @@ impl VulkanDevice {
+         space: Arc<metal_space::Hold>,
+     ) -> VulkanTexture {
+         Obj::new(TextureObject {
++            astc: None,
+             raw,
+             device: self.clone_ref(),
+             surface,
+@@ -481,6 +503,7 @@ impl VulkanDevice {
+         };
+         let space = Arc::new(metal_space::texture(kind));
+         Obj::new(TextureObject {
++            astc: None,
+             raw,
+             device: self.clone_ref(),
+             surface: None,
+@@ -1032,7 +1055,9 @@ impl GpuDevice<VulkanPlatform> for VulkanDevice {
+                 send(sel, Policy::Dies, || {
+                     match self.raw.new_library_with_data(data) {
+                         Ok(raw) => Ok(Ok(raw)),
+-                        Err(rt::Error::Compile(metal2vulkan::error::Error::InvalidInput(_))) => {
++                        Err(rt::Error::Compile(metal2vulkan::error::Error::InvalidInput(reason))) => {
++                            log::warn!("library rejected: {reason}; {} bytes; prefix {:02x?}", data.len(), &data[..data.len().min(16)]);
++                            capture_rejected_library(data, &format!("{reason:?}"));
+                             Ok(Err(invalid_library_file()))
+                         }
+                         Err(e) => Err(e),
+@@ -1271,6 +1296,28 @@ impl GpuDevice<VulkanPlatform> for VulkanDevice {
+             }
+         };
+         let space = Arc::new(metal_space::texture(kind));
++        if matches!(raw, 204 | 190) && std::env::var_os("REIMS_EXPERIMENT_ASTC_CPU").as_deref() == Some(std::ffi::OsStr::new("1")) {
++            if !crate::gpu::astc::State::accepts(&desc) {
++                crate::answer::unrepresentable(sel, &format!("ASTC CPU fallback descriptor outside tested sampled 2D mip contract: {desc:?}"));
++            }
++            let guest_astc_format = raw;
++            let mut backing = desc;
++            backing.pixel_format = metal2vulkan::metal::PixelFormat::RGBA16Float;
++            let texture = create(sel, Policy::Dies, Nil::Memory, || self.raw.new_texture_with_range_token(&backing, Box::new(Arc::clone(&space))))?;
++            return Ok(texture.map(|raw| {
++                log::warn!("ASTC CPU fallback allocated {}x{} RGBA16F sampled backing", desc.width, desc.height);
++                Obj::new(TextureObject {
++                    astc: Some({
++                        let state = Arc::new(crate::gpu::astc::State::new_mipmapped(desc.width, desc.height, guest_astc_format, desc.mipmap_level_count));
++                        state.initialize(&raw).unwrap_or_else(|e| crate::answer::unrepresentable(sel, &e));
++                        state
++                    }),
++                    raw, device: self.clone_ref(), surface: None, plane: None, under: None,
++                    private_usage: 0,
++                    space: Arc::clone(&space),
++                })
++            }));
++        }
+         let token: rt::RangeToken = Box::new(Arc::clone(&space));
+         let made = create(sel, Policy::Dies, Nil::Memory, || {
+             (self.raw.new_texture_with_range_token(&desc, token))
+@@ -1379,6 +1426,7 @@ impl GpuDevice<VulkanPlatform> for VulkanDevice {
+         };
+         let over_guest_pages = crate::os::over_guest_pages(&surface);
+         let texture = Obj::new(TextureObject {
++            astc: None,
+             raw,
+             device: self.clone_ref(),
+             space,
+diff --git a/crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs b/crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs
+index 3a89d2bc4ba44a0bd2adecaf8a6b27230093f107..c2a0257692c9a8c46f2b785dc591db75e67cdfd1 100644
+--- a/crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs
++++ b/crates/reims-vgpu-vulkan/src/gpu/encode_blit.rs
+@@ -717,6 +717,11 @@ impl BlitEncoder<VulkanPlatform> for VulkanBlitEncoder {
+                 destination_level,
+                 destination_origin,
+             } => {
++                if let Some(astc) = &destination_texture.astc {
++                    let region = MtlRegion {origin:destination_origin,size:source_size};
++                    return caught(&mut |e| astc.blit(e,&source_buffer.raw,source_offset,
++                        source_bytes_per_row,source_bytes_per_image,region,destination_level,destination_slice,&destination_texture.raw));
++                }
+                 let destination = destination_texture.copied(sel);
+                 let shape = || {
+                     buffer_copy_shape(
+@@ -754,7 +759,14 @@ impl BlitEncoder<VulkanPlatform> for VulkanBlitEncoder {
+                 options,
+             } => {
+                 let source = some(sel, source_buffer, "buffer");
+-                let destination = some(sel, destination_texture, "texture").copied(sel);
++                let texture = some(sel, destination_texture, "texture");
++                if let Some(astc) = &texture.astc {
++                    if options != 0 { unrepresentable(sel,"ASTC CPU fallback blit options other than zero"); }
++                    let region = MtlRegion {origin:destination_origin,size:source_size};
++                    return caught(&mut |e| astc.blit(e,&source.raw,source_offset,
++                        source_bytes_per_row,source_bytes_per_image,region,destination_level,destination_slice,&texture.raw));
++                }
++                let destination = texture.copied(sel);
+                 let options = blit_option(sel, options);
+                 let shape = || {
+                     buffer_copy_shape(
+@@ -809,6 +821,10 @@ impl BlitEncoder<VulkanPlatform> for VulkanBlitEncoder {
+                 destination_bytes_per_row,
+                 destination_bytes_per_image,
+             } => {
++                if let Some(astc)=&source_texture.astc {
++                    let r=reims_vgpu_core::platform::types::MtlRegion{origin:source_origin,size:source_size};
++                    return caught(&mut |e|astc.readback(e,&destination_buffer.raw,destination_offset,destination_bytes_per_row,destination_bytes_per_image,r,source_level,source_slice));
++                }
+                 let source = source_texture.copied(sel);
+                 let shape = || {
+                     buffer_copy_shape(
+@@ -845,8 +861,14 @@ impl BlitEncoder<VulkanPlatform> for VulkanBlitEncoder {
+                 destination_bytes_per_image,
+                 options,
+             } => {
+-                let source = some(sel, source_texture, "texture").copied(sel);
+-                let destination = some(sel, destination_buffer, "buffer");
++                let texture=some(sel,source_texture,"texture");
++                let destination=some(sel,destination_buffer,"buffer");
++                if let Some(astc)=&texture.astc {
++                    if options!=0 {unrepresentable(sel,"ASTC readback options other than zero");}
++                    let r=reims_vgpu_core::platform::types::MtlRegion{origin:source_origin,size:source_size};
++                    return caught(&mut |e|astc.readback(e,&destination.raw,destination_offset,destination_bytes_per_row,destination_bytes_per_image,r,source_level,source_slice));
++                }
++                let source=texture.copied(sel);
+                 let options = blit_option(sel, options);
+                 let shape = || {
+                     buffer_copy_shape(
+diff --git a/crates/reims-vgpu-vulkan/src/gpu/resource.rs b/crates/reims-vgpu-vulkan/src/gpu/resource.rs
+index fd22335ca2ae3b390456f5651b0038648cbbef7d..4d486037592e4661b9ca9d799009df167114adb8 100644
+--- a/crates/reims-vgpu-vulkan/src/gpu/resource.rs
++++ b/crates/reims-vgpu-vulkan/src/gpu/resource.rs
+@@ -106,6 +106,8 @@ impl BufferObject {
+ /// A runtime texture, with the device that made it and what it is over.
+ #[derive(Debug)]
+ pub struct TextureObject {
++    /// CPU-uploaded ASTC block storage, separate from the sampled RGBA16F image.
++    pub astc: Option<Arc<crate::gpu::astc::State>>,
+     /// The runtime's texture.
+     pub raw: rt::Texture,
+     /// The device that made it.
+@@ -302,6 +304,7 @@ impl TextureObject {
+     /// The runtime's texture, for `sel`, a blit or a CPU access that reads or writes its texels,
+     /// as [`TextureObject::texels`].
+     pub fn copied(&self, sel: &'static str) -> &rt::Texture {
++        if self.astc.is_some() { unrepresentable(sel, "ASTC texture copy/fill outside the implemented buffer-upload path; compressed storage must not be copied as RGBA16F"); }
+         self.texels(sel)
+     }
+ 
+@@ -1518,6 +1521,7 @@ impl VulkanTexture {
+             }
+         };
+         Ok(Some(Obj::new(TextureObject {
++            astc: self.astc.as_ref().map(|a| Arc::new(a.subview(raw.parent_relative_level(),raw.mipmap_level_count()).unwrap_or_else(|e| unrepresentable(sel,&e)))),
+             raw,
+             device: self.device.clone_ref(),
+             surface: self.surface.clone(),
+@@ -1638,7 +1642,10 @@ impl Texture<VulkanPlatform> for VulkanTexture {
+         if self.no_view_of(sel, pixel_format) {
+             return Ok(None);
+         }
+-        let format = view_format(sel, pixel_format);
++        let format = if self.astc.is_some() {
++            if pixel_format != self.astc.as_ref().unwrap().format() { unrepresentable(sel, "ASTC fallback view in another format"); }
++            PixelFormat::RGBA16Float
++        } else { view_format(sel, pixel_format) };
+         self.view(sel, pixel_format, false, |t| t.new_texture_view(format))
+     }
+ 
+@@ -1651,7 +1658,10 @@ impl Texture<VulkanPlatform> for VulkanTexture {
+         if self.no_view_of(sel, pixel_format) {
+             return Ok(None);
+         }
+-        let format = view_format(sel, pixel_format);
++        let format = if self.astc.is_some() {
++            if pixel_format != self.astc.as_ref().unwrap().format() { unrepresentable(sel, "ASTC fallback view in another format"); }
++            PixelFormat::RGBA16Float
++        } else { view_format(sel, pixel_format) };
+         self.view(sel, pixel_format, false, |t| {
+             t.new_texture_view_with_placement(format, at(resource_index))
+         })
+@@ -1671,7 +1681,10 @@ impl Texture<VulkanPlatform> for VulkanTexture {
+         let kind = crate::gpu::texture_type(sel, texture_type);
+         let (levels, slices) = (indices(sel, level_range), indices(sel, slice_range));
+         self.retyped_ycbcr(sel, pixel_format, kind);
+-        let format = view_format(sel, pixel_format);
++        let format = if self.astc.is_some() {
++            if pixel_format != self.astc.as_ref().unwrap().format() { unrepresentable(sel, "ASTC fallback view in another format"); }
++            PixelFormat::RGBA16Float
++        } else { view_format(sel, pixel_format) };
+         self.view(sel, pixel_format, false, |t| {
+             t.new_texture_view_with_levels_slices(format, kind, levels, slices)
+         })
+@@ -1693,7 +1706,10 @@ impl Texture<VulkanPlatform> for VulkanTexture {
+         let (levels, slices) = (indices(sel, level_range), indices(sel, slice_range));
+         let swizzle = crate::gpu::swizzle(sel, swizzle);
+         self.retyped_ycbcr(sel, pixel_format, kind);
+-        let format = view_format(sel, pixel_format);
++        let format = if self.astc.is_some() {
++            if pixel_format != self.astc.as_ref().unwrap().format() { unrepresentable(sel, "ASTC fallback view in another format"); }
++            PixelFormat::RGBA16Float
++        } else { view_format(sel, pixel_format) };
+         self.view(sel, pixel_format, !swizzle.is_default(), |t| {
+             t.new_texture_view_with_swizzle(format, kind, levels, slices, swizzle)
+         })
+@@ -1716,7 +1732,10 @@ impl Texture<VulkanPlatform> for VulkanTexture {
+         let (levels, slices) = (indices(sel, levels), indices(sel, slices));
+         let swizzle = crate::gpu::swizzle(sel, swizzle);
+         self.retyped_ycbcr(sel, pixel_format, kind);
+-        let format = view_format(sel, pixel_format);
++        let format = if self.astc.is_some() {
++            if pixel_format != self.astc.as_ref().unwrap().format() { unrepresentable(sel, "ASTC fallback view in another format"); }
++            PixelFormat::RGBA16Float
++        } else { view_format(sel, pixel_format) };
+         self.view(sel, pixel_format, !swizzle.is_default(), |t| {
+             t.new_texture_subview_with_placement(
+                 format,
+@@ -1744,7 +1763,10 @@ impl Texture<VulkanPlatform> for VulkanTexture {
+         let kind = crate::gpu::texture_type(sel, texture_type);
+         let (levels, slices) = (indices(sel, levels), indices(sel, slices));
+         self.retyped_ycbcr(sel, pixel_format, kind);
+-        let format = view_format(sel, pixel_format);
++        let format = if self.astc.is_some() {
++            if pixel_format != self.astc.as_ref().unwrap().format() { unrepresentable(sel, "ASTC fallback view in another format"); }
++            PixelFormat::RGBA16Float
++        } else { view_format(sel, pixel_format) };
+         self.view(sel, pixel_format, false, |t| {
+             t.new_texture_subview_with_placement(
+                 format,
+@@ -1759,7 +1781,7 @@ impl Texture<VulkanPlatform> for VulkanTexture {
+ 
+     /// The runtime's.
+     fn pixel_format(&self) -> u64 {
+-        u64::from(plain(|| self.raw.pixel_format()).as_raw())
++        if self.astc.is_some() { 204 } else { u64::from(plain(|| self.raw.pixel_format()).as_raw()) }
+     }
+ 
+     fn protection_options(&self) -> u64 {
+@@ -1782,8 +1804,13 @@ impl Texture<VulkanPlatform> for VulkanTexture {
+         bytes_per_image: u64,
+     ) -> RaiseResult<()> {
+         let sel = "replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:";
+-        let raw = self.copied(sel);
+         let bytes = host_bytes(sel, pixel_bytes);
++        if let Some(astc) = &self.astc {
++            astc.upload(&self.raw, region, level, slice, &bytes, bytes_per_row, bytes_per_image)
++                .unwrap_or_else(|e| unrepresentable(sel, &e));
++            return Ok(());
++        }
++        let raw = self.copied(sel);
+         if self.gpu_read_only() {
+             let rows = (bytes_per_row, bytes_per_image);
+             return self.replaced_on_surface(sel, raw, (region, level, slice), &bytes, rows);
+diff --git a/crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs b/crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs
+index 45a95e6b876b2e6e66be9cc38916e9b62fee1d16..a03be730abf0bdc8b3df5e7c5f32bfcbab2ba906 100644
+--- a/crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs
++++ b/crates/reims-vgpu-vulkan/src/gpu/ycbcr.rs
+@@ -188,6 +188,7 @@ pub(crate) fn pass_refused(sel: &'static str, d: &rt::RenderPassDescriptor, e: &
+     let Some(pf) = found else {
+         return;
+     };
++    log::error!("refused YCbCr render descriptor: {d:?}");
+     let raw = u64::from(pf.as_raw());
+     let name = crate::gpu::format_info::name(sel, raw);
+     let metal = if ycbcr_pass_refused(pf) {
+diff --git a/crates/reims-vgpu-vulkan/src/os/surface.rs b/crates/reims-vgpu-vulkan/src/os/surface.rs
+index 44930bbb60350ebb5540e4a42bf9fbdae9ae7911..99849b6e1566b62152902f05eb015c924004bedb 100644
+--- a/crates/reims-vgpu-vulkan/src/os/surface.rs
++++ b/crates/reims-vgpu-vulkan/src/os/surface.rs
+@@ -37,13 +37,18 @@ pub(crate) fn plane_facts(surface: &OsSurface, plane: u64) -> Option<rt::IoSurfa
+         return None;
+     }
+     let (chroma, bytes_per_row) = host_os::plane_at(surface, 1)?;
+-    Some(rt::IoSurfaceYCbCr::new(
++    let facts = rt::IoSurfaceYCbCr::new(
+         surface.pixel_format(),
+         plane,
+         [surface.width(), surface.height()],
+         chroma,
+         bytes_per_row,
+-    ))
++    );
++    Some(match (host_os::plane_shape(surface, 0), host_os::plane_shape(surface, 1)) {
++        (Some((w0, h0, b0)), Some((w1, h1, b1))) if surface.plane_count() == 2 =>
++            facts.with_plane_shapes([[w0, h0, b0], [w1, h1, b1]]),
++        _ => facts,
++    })
+ }
+ 
+ /// What a texture of a two-plane YCbCr format the runtime reads
+diff --git a/crates/reims-vgpu-vulkan/src/os/windows/api.rs b/crates/reims-vgpu-vulkan/src/os/windows/api.rs
+index 9a1d8c1649954175069dc2c6f9f8d494f5e48291..12e2596f45ef960303e79510d71962f4a9807b00 100644
+--- a/crates/reims-vgpu-vulkan/src/os/windows/api.rs
++++ b/crates/reims-vgpu-vulkan/src/os/windows/api.rs
+@@ -57,6 +57,7 @@ pub(super) struct MemoryStatus {
+ 
+ #[link(name = "kernel32")]
+ unsafe extern "system" {
++    pub(super) fn K32QueryWorkingSetEx(process: *mut c_void, buffer: *mut c_void, bytes: u32) -> i32;
+     pub(super) fn GetSystemInfo(info: *mut SystemInfo);
+     pub(super) fn GetCurrentProcess() -> *mut c_void;
+     pub(super) fn GlobalMemoryStatusEx(info: *mut MemoryStatus) -> i32;
+diff --git a/crates/reims-vgpu-vulkan/src/os/windows/threads.rs b/crates/reims-vgpu-vulkan/src/os/windows/threads.rs
+index c17858bbe4e891756047f25c319b2a2b02297b18..6aaba6546a13dbd75b2231496e37d5bd0e1d268c 100644
+--- a/crates/reims-vgpu-vulkan/src/os/windows/threads.rs
++++ b/crates/reims-vgpu-vulkan/src/os/windows/threads.rs
+@@ -1,4 +1,4 @@
+-//! Detached Windows threads with the stack and name core requests.
++//! Detached Windows threads; Vulkan queue workers also run shader compilation.
+ 
+ use super::clock::WindowsClock;
+ use reims_vgpu_core::platform::os::{Threads, TimerClock};
+@@ -29,7 +29,9 @@ impl Threads for WindowsThreads {
+         }
+     }
+     fn spawn_worker(&self, label: &'static str, body: Box<dyn FnOnce() + Send>) {
+-        self.spawn(label, reims_vgpu_core::rt::queue::WORKER_STACK, body);
++        // Synchronous shader lowering can exceed the Metal-oriented 512 KiB core stack.
++        // Windows reserves this address range and commits pages as the stack grows.
++        self.spawn(label, reims_vgpu_core::rt::queue::WORKER_STACK.max(8 * 1024 * 1024), body);
+     }
+     fn handle(&self) -> Arc<dyn Threads> {
+         Arc::new(Self)
+@@ -61,3 +63,51 @@ mod tests {
+         );
+     }
+ }
++
++#[cfg(test)]
++mod stack_tests {
++    use super::*;
++    use super::super::api::{MemoryInfo, VirtualQuery, MEM_COMMIT};
++    #[link(name = "kernel32")]
++    unsafe extern "system" {
++        fn GetCurrentThreadStackLimits(low: *mut usize, high: *mut usize);
++
++    }
++    fn stack_usage() -> (usize, usize) {
++        let (mut low, mut high) = (0, 0);
++        unsafe { GetCurrentThreadStackLimits(&mut low, &mut high); }
++        let (mut at, mut committed) = (low, 0);
++        while at < high {
++            let mut info = MemoryInfo::default();
++            assert_ne!(unsafe { VirtualQuery(at as *const std::ffi::c_void, &mut info, std::mem::size_of::<MemoryInfo>()) }, 0);
++            let end = (info.base as usize + info.region_size).min(high);
++            assert!(end > at);
++            if info.state == MEM_COMMIT { committed += end - at; }
++            at = end;
++        }
++        (high - low, committed)
++    }
++    #[inline(never)]
++    fn consume_stack(depth: usize) -> usize {
++        let mut page = [0u8; 8192];
++        std::hint::black_box(&mut page);
++        let value = if depth == 0 { stack_usage().1 } else { consume_stack(depth - 1) };
++        std::hint::black_box(&page);
++        value
++    }
++    #[test]
++    fn worker_reserves_headroom_and_commits_stack_on_demand() {
++        let (send, receive) = std::sync::mpsc::channel();
++        WindowsThreads.spawn_worker("stack-regression", Box::new(move || {
++            let before = stack_usage();
++            let peak_committed = consume_stack(160);
++            send.send((before, peak_committed)).unwrap();
++        }));
++        let ((reserved, committed), peak) = receive.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
++        println!("stack reserved={reserved} initial_committed={committed} recursive_committed={peak}");
++        assert!(reserved >= 8 * 1024 * 1024 - 65536);
++        assert!(committed < reserved / 2);
++        assert!(peak > 1024 * 1024);
++        assert!(peak < reserved);
++    }
++}
+\ No newline at end of file
+diff --git a/crates/reims-vgpu-vulkan/src/os/windows/vm.rs b/crates/reims-vgpu-vulkan/src/os/windows/vm.rs
+index 8a1e3c7cc8ee4e5162b4b274e93d58af39abafba..19966e0df52d953621850e89e8216d655e72df22 100644
+--- a/crates/reims-vgpu-vulkan/src/os/windows/vm.rs
++++ b/crates/reims-vgpu-vulkan/src/os/windows/vm.rs
+@@ -374,13 +374,113 @@ impl Drop for OwnMemory {
+ /// Mach VM's shared-view operations on Windows.
+ #[derive(Debug, Default)]
+ pub struct WindowsVm;
++
++#[repr(C)]
++struct WorkingPage { address: *mut std::ffi::c_void, flags: usize }
++
++// VirtualQuery scans forward through a uniformly protected region, which is
++// expensive in a multi-GiB guest RAM mapping. Query only the requested resident
++// pages; uncertain/nonresident pages use the existing full metadata check.
++// Nothing is cached across calls, and no guest bytes are touched to fault them in.
++fn resident_readable(ranges: &[std::ops::Range<u64>]) -> Option<bool> {
++    let page = page_size();
++    let mut pages = std::collections::BTreeSet::new();
++    for range in ranges {
++        let length = range.end.checked_sub(range.start)?;
++        if files::readable(range.start, length) == Some(false) { return Some(false); }
++        if length == 0 { continue; }
++        let last = (range.end - 1) & !(page - 1);
++        let mut at = range.start & !(page - 1);
++        loop {
++            pages.insert(at);
++            if pages.len() > 4096 { return None; }
++            if at == last { break; }
++            at = at.checked_add(page)?;
++        }
++    }
++    if pages.is_empty() { return Some(true); }
++    let mut entries: Vec<_> = pages.into_iter().map(|at| WorkingPage { address: ptr(at), flags: 0 }).collect();
++    // SAFETY: the kernel writes exactly this initialized array of pointer-sized
++    // PSAPI_WORKING_SET_EX_INFORMATION pairs. GetCurrentProcess is a pseudo handle.
++    if unsafe { K32QueryWorkingSetEx(GetCurrentProcess(), entries.as_mut_ptr().cast(),
++        u32::try_from(entries.len() * size_of::<WorkingPage>()).ok()?) } == 0 { return None; }
++    for entry in entries {
++        // Microsoft: Valid bit 0; Win32Protection bits 4..14; Bad bit 31.
++        // Ignore protection bits when not Valid. Guard/noaccess pages commonly
++        // report invalid, so they must still go through VirtualQuery.
++        if entry.flags & 1 == 0 || entry.flags & (1usize << 31) != 0 { return None; }
++        let protection = ((entry.flags >> 4) & 0x7ff) as u32;
++        if protection == 0 || protection & (PAGE_NOACCESS | 0x100) != 0 { return None; }
++    }
++    Some(true)
++}
++
++// Cache physical VirtualQuery extents only for one validation operation. Logical
++// sub-page protections are still checked for each input range. No result survives
++// a call, so a later protect/unmap is always observed by the next operation.
++fn readable_batch(
++    ranges: &[std::ops::Range<u64>],
++    mut logical: impl FnMut(u64, u64) -> Option<bool>,
++    mut query: impl FnMut(u64) -> Option<std::ops::Range<u64>>,
++) -> bool {
++    let mut known: BTreeMap<u64, u64> = BTreeMap::new();
++    // VirtualQuery describes the queried page forward, not necessarily the
++    // allocation's full extent. Validate lowest addresses first, even when the
++    // guest's alias order is scattered or descending. Remapping keeps its order.
++    let mut ordered: Vec<_> = ranges.iter().collect();
++    ordered.sort_unstable_by_key(|r| r.start);
++    for range in ordered {
++        let Some(length) = range.end.checked_sub(range.start) else { return false };
++        if logical(range.start, length) == Some(false) { return false; }
++        let mut at = range.start;
++        while at < range.end {
++            if let Some((_, &end)) = known.range(..=at).next_back().filter(|(_, end)| **end > at) {
++                at = end.min(range.end);
++                continue;
++            }
++            let Some(region) = query(at) else { return false };
++            if region.start > at || region.end <= at { return false; }
++            at = region.end.min(range.end);
++            known.insert(region.start, region.end);
++        }
++    }
++    true
++}
++
+ impl WindowsVm {
+     /// The process's virtual memory service.
+     pub fn new() -> Self {
+         Self
+     }
++    /// Validate a set of stable source ranges, reusing physical region queries
++    /// within this call, while checking every range's logical read permission.
++    pub(crate) fn readable_ranges(&self, ranges: &[std::ops::Range<u64>]) -> bool {
++        if let Some(readable) = resident_readable(ranges) { return readable; }
++        let start = std::time::Instant::now();
++        let mut queries = 0u64;
++        let readable = readable_batch(ranges, files::readable, |at| {
++            queries += 1;
++            let mut info = MemoryInfo::default();
++            // SAFETY: only queries metadata, into a valid output; reads no guest byte.
++            if unsafe { VirtualQuery(ptr(at), &mut info, size_of::<MemoryInfo>()) } == 0
++                || info.state != MEM_COMMIT
++                || info.protection & (PAGE_NOACCESS | 0x100) != 0 {
++                return None;
++            }
++            let first = info.base.addr().to_u64();
++            Some(first..first.checked_add(info.region_size.to_u64())?)
++        });
++        let elapsed = start.elapsed();
++        if ranges.len() >= 128 || elapsed.as_millis() >= 5 {
++            log::debug!("readable batch: {} spans, {queries} VirtualQuery calls, {:.2} ms, readable={readable}",
++                ranges.len(), elapsed.as_secs_f64()*1000.0);
++        }
++        readable
++    }
+     /// Whether each byte is committed and readable, without dereferencing guest pointers.
+     pub fn readable(&self, address: HostAddr, length: u64) -> bool {
++        let Some(end) = address.addr().to_u64().checked_add(length) else { return false; };
++        if let Some(readable) = resident_readable(&[address.addr().to_u64()..end]) { return readable; }
+         if files::readable(address.addr().to_u64(), length) == Some(false) {
+             return false;
+         }
+@@ -551,6 +651,80 @@ pub(crate) mod tests {
+             .is_ok()
+     }
+ 
++    #[test]
++    fn readable_batch_reuses_regions_and_checks_logical_permissions() {
++        // Non-contiguous, reverse-order guest pages in one physical allocation.
++        let ranges: Vec<_> = (0..4096u64).rev().map(|i| i*8192..i*8192+4096).collect();
++        let mut queries = 0;
++        assert!(readable_batch(&ranges, |_,_| Some(true), |at| {
++            queries += 1; Some(at..4096*8192)
++        }));
++        assert_eq!(queries,1,"one OS query, rather than one per source span");
++        let mut checks = 0;
++        assert!(!readable_batch(&ranges, |_,_| {
++            checks += 1; Some(checks != 2)
++        }, |_| Some(0..4096*8192)));
++        assert_eq!(checks,2,"cached physical readability cannot override logical protection");
++    }
++
++    #[test]
++    fn readable_batch_rejects_holes_and_has_no_cross_call_cache() {
++        assert!(!readable_batch(&[0..4096,8192..12288], |_,_| None,
++            |at| (at == 0).then_some(0..4096)));
++        assert!(!readable_batch(&[5..4], |_,_| Some(true), |_| Some(0..100)));
++        assert!(!readable_batch(&[1..2], |_,_| None, |_| Some(2..3)));
++        assert!(readable_batch(&[0..4096], |_,_| None, |_| Some(0..4096)));
++        assert!(!readable_batch(&[0..4096], |_,_| None, |_| None));
++    }
++
++    #[test]
++    fn readable_batch_observes_real_protection_changes() {
++        let vm = WindowsVm;
++        let at = vm.allocate_anywhere(3*PAGE).unwrap();
++        let base = at.addr().to_u64();
++        let ranges = [base..base+PAGE,base+2*PAGE..base+3*PAGE];
++        assert!(vm.readable_ranges(&ranges));
++        let mut original = 0;
++        // SAFETY: this test owns the entire mapped range. Change OS protection
++        // directly so the logical registry still says readable; the next batch
++        // must inspect the actual OS state instead of reusing a prior result.
++        assert_ne!(unsafe { VirtualProtect(ptr(base),(3*PAGE).to_usize(),PAGE_NOACCESS,&mut original) },0);
++        assert!(!vm.readable_ranges(&ranges));
++        let mut previous = 0;
++        // SAFETY: restore exactly the protection of this same owned mapping.
++        assert_ne!(unsafe { VirtualProtect(ptr(base),(3*PAGE).to_usize(),original,&mut previous) },0);
++        assert!(vm.readable_ranges(&ranges));
++        assert!(vm.deallocate(at,3*PAGE).is_success());
++        assert!(!vm.readable_ranges(&ranges));
++    }
++
++    #[test]
++    fn resident_readable_checks_every_page_and_observes_guard_and_unmap() {
++        let vm = WindowsVm;
++        let at = vm.allocate_anywhere(3*PAGE).unwrap();
++        let base = at.addr().to_u64();
++        // SAFETY: each page belongs to this writable test allocation.
++        for offset in [0, PAGE, 2*PAGE] { unsafe { ptr(base+offset).cast::<u8>().write_volatile(7); } }
++        let ranges = [base+3..base+3*PAGE-3, base+PAGE..base+2*PAGE];
++        assert_eq!(resident_readable(&ranges), Some(true));
++        let mut old = 0;
++        // Protect the interior page directly: logical registry still says readable.
++        assert_ne!(unsafe { VirtualProtect(ptr(base+PAGE),PAGE.to_usize(),PAGE_NOACCESS,&mut old) },0);
++        assert!(!vm.readable_ranges(&ranges));
++        let mut previous = 0;
++        assert_ne!(unsafe { VirtualProtect(ptr(base+PAGE),PAGE.to_usize(),old|0x100,&mut previous) },0);
++        assert!(!vm.readable_ranges(&ranges)); // metadata check must not consume guard
++        let mut info = MemoryInfo::default();
++        assert_ne!(unsafe { VirtualQuery(ptr(base+PAGE),&mut info,size_of::<MemoryInfo>()) },0);
++        assert_ne!(info.protection & 0x100,0);
++        assert_ne!(unsafe { VirtualProtect(ptr(base+PAGE),PAGE.to_usize(),old,&mut previous) },0);
++        assert!(vm.readable_ranges(&ranges)); // nonresident fallback remains accepted
++        assert!(vm.deallocate(at,3*PAGE).is_success());
++        assert!(!vm.readable_ranges(&ranges));
++        assert_eq!(resident_readable(&[5..4]),None);
++        assert_eq!(size_of::<WorkingPage>(),2*size_of::<usize>());
++    }
++
+     #[test]
+     fn aliases_are_shared_page_aligned_and_outlive_the_source() {
+         let vm = WindowsVm;
+diff --git a/crates/reims-vgpu-window/src/native/linux/input.rs b/crates/reims-vgpu-window/src/native/linux/input.rs
+index 62e21ad32dd01dd2c6b029fa5fc9989a9f6f9183..0a754cfc116cec82b08b3426f5ed4d0391543fa4 100644
+--- a/crates/reims-vgpu-window/src/native/linux/input.rs
++++ b/crates/reims-vgpu-window/src/native/linux/input.rs
+@@ -149,6 +149,8 @@ pub(crate) struct Input {
+     last: Option<ToHost>,
+     /// Whether the window has the keyboard.
+     focused: bool,
++    /// Direct-touch windows may forward the contact that also focuses them.
++    focus_clickthrough: bool,
+     /// When the window last gained the keyboard, on SDL's event clock.
+     focused_at: Option<u64>,
+     /// What to send, in order, since [`send`] last took it.
+@@ -167,6 +169,9 @@ impl Input {
+         Input::default()
+     }
+ 
++    /// Forward focus-causing contacts for direct-touch absolute input.
++    pub(crate) fn set_focus_clickthrough(&mut self, enabled: bool) { self.focus_clickthrough=enabled; }
++
+     /// Whether the keyboard is captured.
+     pub(crate) fn is_captured(&self) -> bool {
+         self.capture.is_captured()
+@@ -310,7 +315,7 @@ impl Input {
+         let forward = if was_captured {
+             true
+         } else {
+-            self.capture.click_in_image(!focusing).forward
++            self.capture.click_in_image(!focusing || self.focus_clickthrough && !self.relative_mouse).forward
+         };
+         if forward {
+             self.buttons |= bit;
+@@ -523,6 +528,19 @@ mod tests {
+         input
+     }
+ 
++    #[test]
++    fn direct_touch_focus_drag_keeps_press_motion_and_release() {
++        let mut input=Input::new();input.set_focus_clickthrough(true);input.focus_gained(1_000_000_000);
++        input.button_down(BUTTON_LEFT,1_010_000_000,&at((10.0,40.0)));
++        input.moved(&at((10.0,10.0)));input.button_up(BUTTON_LEFT,&at((10.0,10.0)));
++        let events=input.take();assert_eq!(events.len(),3);
++        assert!(matches!(events[0],ToHost::Pointer{buttons:BUTTON_LEFT,..}));
++        assert!(matches!(events[1],ToHost::Pointer{buttons:BUTTON_LEFT,..}));
++        assert!(matches!(events[2],ToHost::Pointer{buttons:0,..}));
++        input.button_down(BUTTON_LEFT,2_000_000_000,&at((10.0,10.0)));input.take();input.focus_lost();
++        assert!(matches!(input.take().last(),Some(ToHost::Pointer{buttons:0,..})));
++    }
++
+     fn relative(dx: i32, dy: i32, buttons: u32) -> ToHost {
+         ToHost::RelativePointer { dx, dy, buttons }
+     }
+diff --git a/crates/reims-vgpu-window/src/native/linux/sdl.rs b/crates/reims-vgpu-window/src/native/linux/sdl.rs
+index 0b9629b193493ea7ce131d0b14cbd4d39e592f4a..afd832cf8a5b2627093d0e7fdd0e7828637dcad5 100644
+--- a/crates/reims-vgpu-window/src/native/linux/sdl.rs
++++ b/crates/reims-vgpu-window/src/native/linux/sdl.rs
+@@ -142,10 +142,12 @@ pub(crate) fn open(window: &Arc<Window>, borderless: bool, _taken: &[Frame]) ->
+     let mode = window.mode().or(window.offered()).unwrap_or(DEFAULT_MODE);
+     let size = windowed_size(display, mode, window.guest_scale(mode));
+     let title = c_string(window.title());
+-    let flags = SDL_WINDOW_VULKAN
++    let keep_on_top = cfg!(windows) && std::env::var_os("REIMS_VGPU_WINDOW_ON_TOP").as_deref() == Some(std::ffi::OsStr::new("1"));
++    let mut flags = SDL_WINDOW_VULKAN
+         | SDL_WINDOW_HIGH_PIXEL_DENSITY
+         | SDL_WINDOW_RESIZABLE
+         | SDL_WINDOW_HIDDEN;
++    if keep_on_top { flags |= SDL_WINDOW_ALWAYS_ON_TOP; }
+     // SAFETY: SDL's video runs on this thread; the title is copied.
+     let sdl = unsafe { SDL_CreateWindow(title.as_ptr(), size.0, size.1, flags) };
+     if sdl.is_null() {
+@@ -161,6 +163,7 @@ pub(crate) fn open(window: &Arc<Window>, borderless: bool, _taken: &[Frame]) ->
+             SDL_SetWindowFullscreen(sdl, true);
+         }
+         SDL_ShowWindow(sdl);
++        if keep_on_top { SDL_RaiseWindow(sdl); }
+     }
+     window.surface().set_target(Target(sdl));
+     window.surface().set_visible(true);
+@@ -172,6 +175,7 @@ pub(crate) fn open(window: &Arc<Window>, borderless: bool, _taken: &[Frame]) ->
+     );
+     let mut input = input::Input::new();
+     input.set_relative_mouse_mode(window.relative_mouse_mode());
++    input.set_focus_clickthrough(cfg!(windows) && std::env::var_os("REIMS_VGPU_FORWARD_FOCUS_CLICK").as_deref() == Some(std::ffi::OsStr::new("1")));
+     Some(Opened {
+         sdl,
+         asked: size,
+@@ -309,6 +313,9 @@ fn keyboard_focus(window: *mut SDL_Window) -> bool {
+ 
+ /// Grabs the keyboard while captured, and lets it go (the module doc).
+ pub(crate) fn grab_keyboard(shell: &Shell, captured: bool) {
++    #[cfg(windows)]
++    let captured = keyboard_grab_policy(captured, shell.input.0.relative_mouse_mode(),
++        std::env::var_os("REIMS_VGPU_WINDOW_KEYBOARD_GRAB").as_deref() == Some(std::ffi::OsStr::new("0")));
+     // SAFETY: the window is SDL's, on this thread.
+     let grabbed = unsafe { SDL_SetWindowKeyboardGrab(shell.sdl, captured) };
+     if !grabbed {
+@@ -320,6 +327,20 @@ pub(crate) fn grab_keyboard(shell: &Shell, captured: bool) {
+     }
+ }
+ 
++#[cfg(windows)]
++fn keyboard_grab_policy(captured: bool, relative: bool, host_shortcuts: bool) -> bool {
++    captured && (relative || !host_shortcuts)
++}
++
++#[cfg(all(test, windows))]
++#[test]
++fn direct_touch_can_leave_host_shortcuts_ungrabbed() {
++    assert!(!keyboard_grab_policy(true, false, true));
++    assert!(keyboard_grab_policy(true, false, false));
++    assert!(keyboard_grab_policy(true, true, true));
++    assert!(!keyboard_grab_policy(false, true, true));
++}
++
+ /// Whether this owned SDL window actually has relative mode enabled.
+ pub(crate) fn relative_mouse_active(shell: &Shell) -> bool {
+     shell.os.relative_active && shell.input.0.wants_relative_mouse()
+diff --git a/docs/windows-guest-pages-16k.md b/docs/windows-guest-pages-16k.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f43b3d1ff197a1499b40de3757c8cea9d7e10932
+--- /dev/null
++++ b/docs/windows-guest-pages-16k.md
+@@ -0,0 +1,24 @@
++# Fixed 16 KiB guest-page experiment on Windows x64
++
++The opt-in `guest-page-16k` feature selects 16 KiB for all guest ABI page constants in the library. Without it, x64 builds retain their 4 KiB behavior. Host virtual-memory mapping remains at the actual host page size. A feature-enabled DLL cannot serve mixed 4 KiB and 16 KiB guests.
++
++The upstream per-device design is YahiaAngelo/reims-vgpu commit `84089ca48a08b258c2c784ccf01976be020a0c08`, present in vphone pin `960bf4b128a2678f032e46eb32964caa4828b818`. Its changes to about 50 files do not apply cleanly to this Windows baseline, particularly Windows section backing and C API layout. This smaller compile-time option is an experimental capability, not that complete port. Existing source licenses apply.
++
++Build in a Visual Studio developer shell with Rust 1.98.1, one Cargo/CMake job and debug/incremental output disabled:
++
++```
++cargo build -p reims-vgpu-c --no-default-features --features vulkan,guest-page-16k
++cargo test -p reims-vgpu-core --features guest-page-16k guest_page_constants_
++clang tests/windows-guest-pages-16k.c -Icrates/reims-vgpu-c/include target/debug/reims_vgpu_c.dll.lib -o guest-pages-16k.exe
++```
++
++Put `target/debug` on the process PATH. Run the executable without arguments, then with `boundary`, `unaligned-length` and `outside`. The normal and final-page cases require exact 8192-byte GPU readback; invalid length and out-of-map start require zero guest frames/callbacks. The fixture is based on the upstream EFI sequence in `tests/suite/scenarios/smoke_host.py`.
++
++Observed on 2026-11-03, NVIDIA RTX 4070 Ti / native Windows:
++
++- Feature build passed (4m41s), retaining existing LNK4098 MSVCRTD conflict warning.
++- Page-geometry unit test passed (one test; full suite not run).
++- Both positive fixtures matched every output byte; invalid 12 KiB length and outside start were rejected with zero presents.
++- A separate Dynarmic A64 fixture executed 2048 framebuffer stores and seven 16 KiB-page MMIO writes, then obtained exact GPU output through this DLL.
++
++These tests prove a bounded GPU presentation path. They do not qualify full FIFO, IOSurface, suspend/resume, guest Metal compatibility or iOS boot, nor settle the mixed CRT warning for production use. No existing VM was modified by the tests.
+diff --git a/tests/windows-guest-pages-16k.c b/tests/windows-guest-pages-16k.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..edf3db4dedbf2dc16c3894ce082ed0b56b2845a0
+--- /dev/null
++++ b/tests/windows-guest-pages-16k.c
+@@ -0,0 +1,46 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later OR LGPL-3.0-or-later */
++#include <windows.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include "reims_vgpu.h"
++#define CHECK(call) do { RvgStatus s=(call); printf("%s: %u %s\n", #call,s,rvg_status_message(s)); if(s) exit(1); } while(0)
++static volatile LONG received_frames=0;
++static void on_frame(void *ctx) {(void)ctx;InterlockedIncrement(&received_frames);}
++int main(int argc,char **argv) {
++ int boundary=argc>1&&!strcmp(argv[1],"boundary");
++ int invalid_length=argc>1&&!strcmp(argv[1],"unaligned-length");
++ int outside=argc>1&&!strcmp(argv[1],"outside");
++ setvbuf(stdout,NULL,_IONBF,0);
++ const size_t size=65536;
++ HANDLE section=CreateFileMappingW(INVALID_HANDLE_VALUE,NULL,PAGE_READWRITE,0,(DWORD)size,NULL);
++unsigned char *ram=MapViewOfFile(section,FILE_MAP_ALL_ACCESS,0,0,size);
++ if(!ram) return 2;
++ unsigned char *pixels=ram+(boundary?0xc000:0);
++ for(int y=0;y<32;y++) for(int x=0;x<64;x++) {unsigned char *p=pixels+256*y+4*x;p[0]=x;p[1]=y;p[2]=x^y;p[3]=255;}
++ RvgMemoryRange range={0x100000,size,ram}; RvgMemoryMap map={&range,1};
++ RvgDeviceConfig dc={0}; dc.struct_size=sizeof(dc);dc.display_port_count=1;dc.memory_map=&map;
++RvgMemoryRangeSection backing={(uint64_t)(uintptr_t)section,0,size,0,0};dc.memory_sections=&backing;
++ RvgDevice *dev=NULL; CHECK(rvg_device_create(&dc,&dev));
++ RvgDisplayConfig displayc={0};displayc.struct_size=sizeof(displayc);displayc.serial_number=7391;
++RvgDisplayCallbacks callbacks={0};callbacks.struct_size=sizeof(callbacks);callbacks.new_frame=on_frame;displayc.callbacks=&callbacks;
++ RvgDisplay *display=NULL;CHECK(rvg_display_create(dev,&displayc,&display));
++ RvgDisplayMode mode={64,32,0,60.0};rvg_display_set_modes(display,&mode,1);
++ rvg_device_mmio_write(dev,0x1034,0xf5);
++ rvg_device_mmio_write(dev,0x1200,1);rvg_device_mmio_write(dev,0x121c,64|(32<<16));
++ rvg_device_mmio_write(dev,0x1218,32);rvg_device_mmio_write(dev,0x1228,256);
++ rvg_device_mmio_write(dev,0x1210,(outside?0x110000:(boundary?0x10c000:0x100000))>>14);rvg_device_mmio_write(dev,0x1214,invalid_length?0x3000:0x4000);
++ Sleep(500);
++ if(invalid_length||outside) {uint64_t guest=0,host=0;rvg_display_present_counts(display,&guest,&host);printf("Rejected fixture %s: guest=%llu callbacks=%ld\n",argv[1],(unsigned long long)guest,received_frames);rvg_device_mmio_write(dev,0x1218,0);rvg_display_release(display);rvg_device_release(dev);UnmapViewOfFile(ram);CloseHandle(section);return guest||received_frames?6:0;}
++
++ RvgFrameTargetConfig tc={sizeof(tc),64,32,RVG_PIXEL_FORMAT_BGRA8_UNORM};RvgFrameTarget *target=NULL;
++ CHECK(rvg_frame_target_create(dev,&tc,&target));RvgFrame *frame=NULL;
++ CHECK(rvg_display_encode_frame(display,target,NULL,&frame));CHECK(rvg_frame_commit(frame));CHECK(rvg_frame_wait(frame));
++ unsigned char result[8192];CHECK(rvg_frame_target_read_pixels(target,result,256,sizeof(result)));
++for(int pass=0;pass<16;pass++){ rvg_frame_release(frame);frame=NULL;Sleep(100); CHECK(rvg_display_encode_frame(display,target,NULL,&frame)); CHECK(rvg_frame_commit(frame)); CHECK(rvg_frame_wait(frame)); }
++uint64_t guest=0,host=0;rvg_display_present_counts(display,&guest,&host);printf("presents guest=%llu host=%llu\n",(unsigned long long)guest,(unsigned long long)host);
++ unsigned errors=0;for(size_t i=0;i<sizeof(result);i++) if(result[i]!=pixels[i]) {if(errors<8)printf("mismatch %zu expected=%u got=%u\n",i,pixels[i],result[i]);errors++;}
++ printf("EFI GPU framebuffer readback: mismatched_bytes=%u of %zu\n",errors,sizeof(result));
++ rvg_device_mmio_write(dev,0x1218,0);rvg_frame_release(frame);rvg_frame_target_release(target);rvg_display_release(display);rvg_device_release(dev);UnmapViewOfFile(ram);CloseHandle(section);
++ return errors?3:0;
++}
